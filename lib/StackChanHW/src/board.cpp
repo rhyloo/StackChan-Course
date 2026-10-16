@@ -56,6 +56,10 @@ bool boardInit() {
 }
 
 void setBaseLeds(uint8_t r, uint8_t g, uint8_t b) {
+    // 12 WS2812 at full white draw ~0.7 A. Together with Wi-Fi, the speaker and
+    // battery charging that collapsed the supply and the PMIC cut the power, so
+    // the brightness is capped here whatever the caller asks for.
+    r = r * LED_MAX_LEVEL / 255; g = g * LED_MAX_LEVEL / 255; b = b * LED_MAX_LEVEL / 255;
     uint16_t c = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
     uint8_t buf[NUM_BASE_LEDS * 2];
     for (int i = 0; i < NUM_BASE_LEDS; i++) { buf[i * 2] = c & 0xFF; buf[i * 2 + 1] = c >> 8; }

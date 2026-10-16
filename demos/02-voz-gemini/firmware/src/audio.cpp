@@ -11,6 +11,8 @@ static constexpr size_t OUT_BLOCK = 2400;      // 100 ms per playRaw call
 static constexpr size_t OUT_RING = OUT_RATE * 20;   // 20 s of speech in PSRAM
 static constexpr uint32_t OUT_IDLE_MS = 400;   // no AUDIO_OUT for this long = the answer is over
 
+static volatile int s_volume = 120;           // 0-255. Loud + LEDs + Wi-Fi can brown out the robot
+static volatile bool s_volumeChanged = false;
 static volatile bool s_wantMic = false;
 static volatile bool s_micOn = false;
 static int16_t* s_ring = nullptr;              // AUDIO_OUT jitter buffer
@@ -41,6 +43,11 @@ static void onMessage(uint8_t type, const uint8_t* p, size_t len) {
 static bool onCommand(const char* cmd) {
     if (!strcmp(cmd, "mic on")) { audioSetMic(true); return true; }
     if (!strcmp(cmd, "mic off")) { audioSetMic(false); return true; }
+    if (!strncmp(cmd, "volume ", 7)) {
+        s_volume = constrain(atoi(cmd + 7), 0, 255);
+        s_volumeChanged = true;
+        return true;
+    }
     return false;
 }
 
@@ -64,8 +71,13 @@ static void audioTask(void*) {
         } else if (!s_wantMic && s_micOn) {
             M5.Mic.end();
             M5.Speaker.begin();
-            M5.Speaker.setVolume(200);
+            M5.Speaker.setVolume(s_volume);
             s_micOn = false;
+        }
+
+        if (s_volumeChanged && !s_micOn) {
+            s_volumeChanged = false;
+            M5.Speaker.setVolume(s_volume);
         }
 
         if (s_micOn) {
@@ -103,7 +115,7 @@ void audioStart() {
     s_ring = (int16_t*)heap_caps_malloc(OUT_RING * sizeof(int16_t), MALLOC_CAP_SPIRAM);
     linkSetCommandHandler(onCommand);
     linkSetMessageHandler(onMessage);
-    M5.Speaker.setVolume(200);
+    M5.Speaker.setVolume(s_volume);
     xTaskCreatePinnedToCore(audioTask, "audio", 6144, nullptr, 3, nullptr, 1);
 }
 

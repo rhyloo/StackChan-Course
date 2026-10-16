@@ -10,6 +10,9 @@ static constexpr float PAN_MAX  =  2.7925f;   // +160.0 deg
 static constexpr float TILT_MIN = -0.050f;    //   -2.8 deg (chin hits the base below this)
 static constexpr float TILT_MAX =  0.480f;    //  +27.5 deg
 
+// --- Base LEDs: maximum level per channel (0-255). See setBaseLeds().
+static constexpr uint8_t LED_MAX_LEVEL = 64;
+
 // --- Servo calibration (Feetech SCS0009, 3.2 steps/deg) ---
 static constexpr int   PAN_CENTER_RAW  = 460;
 static constexpr int   TILT_CENTER_RAW = 620;

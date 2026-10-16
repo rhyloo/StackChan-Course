@@ -119,6 +119,18 @@ class Voice:
                     parameters=S(type="OBJECT", required=["texto"], properties={"texto": S(type="STRING")})),
                 "run": self.fn_texto,
             },
+            "volumen": {
+                "decl": types.FunctionDeclaration(
+                    name="volumen", description="Cambia el volumen del altavoz del robot, de 0 (silencio) a 100.",
+                    parameters=S(type="OBJECT", required=["nivel"], properties={"nivel": S(type="INTEGER")})),
+                "run": self.fn_volumen,
+            },
+            "estado_robot": {
+                "decl": types.FunctionDeclaration(
+                    name="estado_robot",
+                    description="Batería, consumo, Wi-Fi y posición de la cabeza del robot, medidos ahora mismo."),
+                "run": self.fn_estado,
+            },
             "guardar_foto": {
                 "decl": types.FunctionDeclaration(name="guardar_foto", description="Guarda una foto de lo que ve la cámara ahora."),
                 "run": self.fn_foto,
@@ -137,6 +149,20 @@ class Voice:
         import math
         self.robot.pose(math.radians(float(args.get("pan", 0))), math.radians(float(args.get("tilt", 0))))
         return {"ok": True, "aviso": "si el modo de control de las gafas está activo, la cabeza volverá a seguir a la persona"}
+
+    def fn_volumen(self, args):
+        nivel = max(0, min(100, int(args.get("nivel", 50))))
+        self.robot.cmd(f"volume {nivel * 200 // 100}")   # 100 % = 200/255: más alto distorsiona y gasta mucho
+        return {"ok": True, "nivel": nivel}
+
+    def fn_estado(self, args):
+        t = self.robot.telemetry if self.robot.online else {}
+        if not t:
+            return {"error": "no hay datos del robot"}
+        ma = t.get("current_ma")
+        return {"bateria_porcentaje": t.get("batt_pct"), "bateria_voltios": t.get("batt_v"),
+                "corriente_ma": ma, "cargando": ma is not None and ma < 0,
+                "wifi_rssi_dbm": t.get("rssi"), "fps_camara": t.get("fps")}
 
     def fn_texto(self, args):
         texto = str(args.get("texto", ""))[:60]
