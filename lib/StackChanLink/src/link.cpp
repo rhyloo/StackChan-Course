@@ -271,10 +271,13 @@ void linkStart() {
     local.sin_addr.s_addr = htonl(INADDR_ANY);
     bind(s_sock, (sockaddr*)&local, sizeof(local));
 
-    // Wi-Fi/lwIP run on core 0; camera encoding and servos on core 1.
+    // Core 0: Wi-Fi/lwIP (priority 18-23) plus our network tasks, which sleep
+    // until a packet arrives, and the JPEG encoder at low priority: it uses the
+    // time the network leaves free and is preempted whenever Wi-Fi needs the CPU.
+    // Core 1 stays for what needs steady timing: servos, audio and the UI loop.
     xTaskCreatePinnedToCore(rxTask, "link_rx", 4096, nullptr, 5, nullptr, 0);
     xTaskCreatePinnedToCore(helloTask, "link_hello", 4096, nullptr, 3, nullptr, 0);
-    xTaskCreatePinnedToCore(videoTask, "link_video", 8192, nullptr, 2, nullptr, 1);
+    xTaskCreatePinnedToCore(videoTask, "link_video", 8192, nullptr, 2, nullptr, 0);
 }
 
 void linkGetStats(LinkStats* out) {
