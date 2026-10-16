@@ -34,10 +34,10 @@ cámara del robot --JPEG------------------┘ (un fotograma al empezar cada turn
    demos/02-voz-gemini/run_relay.sh       # Windows: demos\02-voz-gemini\run_relay.bat
    ```
    Espera a ver `Gemini: listo`.
-3. **Habla.** Hay tres formas, y todas hacen lo mismo:
-   - **Mando de PS4:** mantén pulsado **L1** mientras hablas, como un walkie-talkie.
-   - **Pantalla del robot:** tócala para empezar y otra vez para terminar. La boca se pone roja mientras escucha.
-   - **Terminal de la pasarela:** pulsa **Enter** para empezar y otra vez para terminar.
+3. **Habla normal**, como con una persona. El robot te escucha siempre que él no está hablando (boca con un círculo verde), y Gemini detecta solo cuándo has terminado (medio segundo de silencio).
+   - **Para que deje de escucharte**, toca su pantalla, pulsa L1 en el mando o Enter en la terminal. Lo mismo para reactivarlo.
+   - **Mientras el robot habla no te oye.** El micrófono y el altavoz comparten el mismo bus de audio del CoreS3, así que no se le puede interrumpir.
+   - **Modo walkie-talkie:** `run_relay.sh --pulsar`. Hablas solo mientras mantienes L1, o entre dos toques de pantalla o dos Enter. Va mejor en sitios ruidosos.
 
 Prueba con:
 - «Activa la visión nocturna»
@@ -59,6 +59,7 @@ Además de todas las de la demo 01:
 | `--voz Kore` | Otra voz: Puck (por defecto), Charon, Kore, Fenrir, Aoede… |
 | `--modelo …` | Otro modelo de Gemini Live |
 | `--sin-vision` | No enviar imágenes a Gemini |
+| `--pulsar` | Pulsar para hablar en vez de manos libres |
 
 ## Dónde programar
 
@@ -71,7 +72,9 @@ Además de todas las de la demo 01:
 
 ## Cómo funciona
 
-- **Turnos.** El turno empieza cuando llega audio del robot y termina tras 300 ms sin audio. La pasarela se lo indica a Gemini (`activity_start` / `activity_end`), así que no hace falta detectar silencios.
+- **Turnos.** En manos libres, el robot envía su micrófono siempre que no habla, y la detección de voz de Gemini decide cuándo empiezas y terminas. Tiene sensibilidad baja al inicio, para que el ruido no la dispare, y da el turno por acabado tras 500 ms de silencio (`SILENCE_MS` en `voice.py`). Con `--pulsar`, el turno lo marca la pasarela: empieza cuando llega audio y termina tras 300 ms sin audio (`activity_start` / `activity_end`).
+- **Imágenes.** En manos libres, Gemini recibe una imagen cada 3 s; con `--pulsar`, una al empezar cada turno. Cada imagen se queda en el contexto de la sesión y frena las respuestas siguientes: medido, unos 100-200 ms con una por segundo.
+- **Consumo de la API.** En manos libres el audio va a Gemini todo el rato (silencios incluidos), así que gasta más cuota que pulsar para hablar.
 - **Micrófono o altavoz, no los dos.** En el CoreS3 comparten el mismo bus I2S. Si hablas mientras el robot responde, el robot se calla y te escucha.
 - **Llamadas a funciones.** Gemini no ejecuta nada por sí mismo: pide «llama a `activar_filtro` con `filtro=nocturna`». La pasarela lo ejecuta y le devuelve el resultado, y Gemini lo usa para responder («Visión nocturna activada»).
 - **Sesiones.** Con vídeo, una sesión de Gemini Live dura poco. Se comprime el contexto para alargarla, y si se corta la pasarela reconecta sola.
@@ -81,6 +84,7 @@ Además de todas las de la demo 01:
 | Síntoma | Solución |
 |---|---|
 | `Falta la clave de Gemini` | `export GEMINI_API_KEY=...` en la misma terminal |
-| La boca se pone roja pero Gemini no contesta | Mira la terminal: si no aparece `Tú: …`, el audio no llega. Comprueba que el robot tiene el firmware de **esta** demo. |
+| Responde a ruidos o a conversaciones de fondo | Silencia el micro (toque, L1 o Enter) o usa `--pulsar` |
+| La boca escucha (círculo verde) pero Gemini no contesta | Mira la terminal: si no aparece `Tú: …`, el audio no llega. Comprueba que el robot tiene el firmware de **esta** demo. |
 | No se oye la respuesta | El volumen está en `audio.cpp` (`setVolume`). La respuesta solo suena cuando el micrófono está cerrado. |
 | La cabeza vuelve a su sitio tras «mira a la izquierda» | En las gafas está activo el modo de control *Head*: manda la cabeza de la persona. Cambia a *View only* con □. |

@@ -175,7 +175,7 @@ void setup() {
     cfg.output_power = true;
     M5.begin(cfg);
     Serial.begin(115200);
-    M5.Display.setBrightness(60);
+    M5.Display.setBrightness(30);
     boardInit();
     setBaseLeds(0, 0, 0);
 

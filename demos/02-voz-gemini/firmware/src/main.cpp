@@ -1,6 +1,6 @@
 // Demo 02 - Voz con Gemini. The demo 01 firmware (camera to the phone, head
 // pose from the phone) plus microphone and speaker over UDP: see audio.cpp.
-// Talk: tap the screen, or hold L1 on the PS4 controller (the relay sends "mic on/off").
+// Hands-free by default: just talk. Tap the screen to mute/unmute the mic.
 // The hardware and the UDP link live in lib/ (StackChanHW, StackChanLink).
 #include <M5Unified.h>
 #include <WiFi.h>
@@ -56,8 +56,11 @@ static void drawStatus() {
     status.setCursor(4, 30);
     if (audioMicOn()) status.setTextColor(TFT_RED);
     else if (audioSpeaking()) status.setTextColor(TFT_CYAN);
-    status.printf("Bat %d%%  %s  %s", (int)M5.Power.getBatteryLevel(),
-                  audioMicOn() ? "ESCUCHANDO" : audioSpeaking() ? "hablando" : "toca para hablar", st.lastText);
+    const char* state = audioMuted() ? "micro silenciado (toca para activar)"
+                      : audioSpeaking() ? "hablando"
+                      : audioMicOn() ? "te escucho"
+                      : audioHandsFree() ? "..." : "toca para hablar";
+    status.printf("Bat %d%%  %s  %s", (int)M5.Power.getBatteryLevel(), state, st.lastText);
     status.pushSprite(0, 240 - 44);
 }
 
@@ -69,7 +72,7 @@ void setup() {
     cfg.output_power = true;
     M5.begin(cfg);
     Serial.begin(115200);
-    M5.Display.setBrightness(80);
+    M5.Display.setBrightness(30);   // más brillo calienta la pantalla y gasta batería
     drawFace();
     status.setColorDepth(16);
     status.createSprite(320, 44);
@@ -132,17 +135,18 @@ void loop() {
         lastUi = now;
         drawStatus();
     }
-    // Tap the screen to start talking, tap again to finish.
-    if (s_linkStarted && M5.Touch.getCount() && M5.Touch.getDetail().wasPressed()) audioSetMic(!audioMicOn());
+    // Tap the screen: mute/unmute (hands-free) or talk/stop (push-to-talk).
+    if (s_linkStarted && M5.Touch.getCount() && M5.Touch.getDetail().wasPressed()) audioTap();
 
     // Mouth: open while listening or speaking.
     static int lastMouth = -1;
-    int mouth = audioMicOn() ? 1 : audioSpeaking() ? 2 : 0;
+    int mouth = audioSpeaking() ? 2 : (audioMicOn() ? 1 : 0);
     if (mouth != lastMouth) {
         lastMouth = mouth;
         M5.Display.fillRect(110, 125, 100, 40, TFT_BLACK);
         if (mouth == 0) M5.Display.fillRect(135, 140, 50, 6, TFT_WHITE);
-        else M5.Display.fillEllipse(160, 143, mouth == 1 ? 14 : 24, mouth == 1 ? 14 : 12, mouth == 1 ? TFT_RED : TFT_WHITE);
+        else if (mouth == 1) M5.Display.drawCircle(160, 143, 10, TFT_GREEN);   // listening
+        else M5.Display.fillEllipse(160, 143, 24, 12, TFT_WHITE);              // speaking
     }
 
     if (Serial.available()) {

@@ -8,9 +8,12 @@ Gemini no ejecuta nada: decide llamar a una función (abajo, en FUNCIONES) y
 somos nosotros quienes la ejecutamos y le devolvemos el resultado. Para darle
 una habilidad nueva, añade una función a FUNCIONES con su descripción.
 
-Turnos tipo walkie-talkie: el turno empieza cuando llega audio del robot y
-termina cuando deja de llegar (300 ms), da igual si fue el botón L1 del mando,
-Enter en esta terminal o un toque en la pantalla del robot.
+Dos modos:
+- Manos libres (por defecto): el micro del robot está abierto siempre que el
+  robot no habla, y Gemini detecta solo cuándo empiezas y terminas de hablar.
+  Tocar la pantalla del robot, L1 o Enter silencian / reactivan el micro.
+- Pulsar para hablar (--pulsar): tipo walkie-talkie. El turno empieza cuando
+  llega audio del robot y termina cuando deja de llegar (300 ms).
 """
 import asyncio
 import os
@@ -29,7 +32,9 @@ from stackchan.relay import debug, log
 T_AUDIO_IN = 0x26
 T_AUDIO_OUT = 0x27
 OUT_CHUNK = 1180            # bytes de PCM por datagrama (cabe en 1200 con cabecera y seq)
-END_OF_TURN_S = 0.3         # sin audio del robot durante 300 ms = has terminado de hablar
+END_OF_TURN_S = 0.3         # pulsar para hablar: sin audio del robot 300 ms = fin del turno
+FRAME_EVERY_S = 3.0         # manos libres: una imagen cada 3 s (más imágenes = respuestas más lentas)
+SILENCE_MS = 500            # manos libres: silencio que da tu turno por terminado
 
 INSTRUCCIONES = """Eres Stack-chan, un robot pequeño y simpático con una cámara en la cara.
 La persona que te habla lleva unas gafas de realidad virtual y ve lo que ve tu cámara.
@@ -41,19 +46,28 @@ _voice = None   # la instancia activa, para hooks.py
 
 
 def push_to_talk(pressed, robot, phone):
-    """Botón del mando: pulsado = el robot escucha; soltado = fin del turno."""
+    """Botón del mando. Pulsar para hablar: pulsado = escucha, soltado = fin del
+    turno. Manos libres: cada pulsación silencia o reactiva el micro."""
+    if _voice and _voice.hands_free:
+        if pressed:
+            _voice.toggle_mute()
+        return
     robot.cmd("mic on" if pressed else "mic off")
     if pressed:
         phone.hud("Escuchando...", ms=1500)
 
 
 class Voice:
-    def __init__(self, relay, model, voice_name, vision):
+    def __init__(self, relay, model, voice_name, vision, hands_free):
         self.relay = relay
         self.robot = relay.robot
         self.phone = relay.phones
         self.model = model
         self.vision = vision
+        self.hands_free = hands_free
+        self.muted = False
+        self.mode_sent_uptime = None    # para reenviar el modo al robot si se reinicia
+        self.last_frame = 0.0
         self.client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
         self.loop = asyncio.new_event_loop()
         self.queue = None             # asyncio.Queue de lo que hay que enviar a Gemini
@@ -76,7 +90,13 @@ class Voice:
             input_audio_transcription=types.AudioTranscriptionConfig(),
             output_audio_transcription=types.AudioTranscriptionConfig(),
             realtime_input_config=types.RealtimeInputConfig(
-                automatic_activity_detection=types.AutomaticActivityDetection(disabled=True)),
+                automatic_activity_detection=types.AutomaticActivityDetection(
+                    disabled=False,
+                    start_of_speech_sensitivity=types.StartSensitivity.START_SENSITIVITY_LOW,   # que el ruido no dispare
+                    end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_HIGH,         # contestar en cuanto callas
+                    prefix_padding_ms=200,
+                    silence_duration_ms=SILENCE_MS,
+                ) if hands_free else types.AutomaticActivityDetection(disabled=True)),
             # Con vídeo, una sesión dura 2 minutos; comprimiendo el contexto puede seguir.
             context_window_compression=types.ContextWindowCompressionConfig(sliding_window=types.SlidingWindow()),
         )
@@ -186,6 +206,16 @@ class Voice:
         if len(payload) <= 4 or self.queue is None:
             return
         self.last_audio = time.monotonic()
+        if self.hands_free:
+            # Gemini decide cuándo empieza y acaba cada turno; nosotros solo
+            # mandamos el audio y, de vez en cuando, lo que ve la cámara.
+            if self.vision and self.last_audio - self.last_frame >= FRAME_EVERY_S and processing.ultimo_fotograma is not None:
+                self.last_frame = self.last_audio
+                ok, jpg = cv2.imencode(".jpg", processing.ultimo_fotograma, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                if ok:
+                    self._put(("frame", jpg.tobytes()))
+            self._put(("audio", payload[4:]))
+            return
         if not self.in_turn:
             self.in_turn = True
             self.heard = []
@@ -197,6 +227,23 @@ class Voice:
                 if ok:
                     self._put(("frame", jpg.tobytes()))
         self._put(("audio", payload[4:]))
+
+    def toggle_mute(self):
+        self.muted = not self.muted
+        self.robot.cmd("mic mute" if self.muted else "mic unmute")
+        self.phone.hud("Micro silenciado" if self.muted else "Te escucho", ms=1500)
+        log("Micrófono del robot " + ("SILENCIADO" if self.muted else "activo"))
+
+    def _sync_robot_mode(self):
+        """Dice al robot en qué modo estamos, también si se reinicia (su uptime baja)."""
+        up = self.robot.uptime
+        if not self.robot.online or up is None:
+            return
+        if self.mode_sent_uptime is None or up < self.mode_sent_uptime:
+            self.robot.cmd("listen auto" if self.hands_free else "listen manual")
+            if self.muted:
+                self.robot.cmd("mic mute")
+        self.mode_sent_uptime = up
 
     def _put(self, item):
         self.loop.call_soon_threadsafe(self.queue.put_nowait, item)
@@ -221,6 +268,7 @@ class Voice:
         while True:
             await asyncio.sleep(0.05)
             now = time.monotonic()
+            self._sync_robot_mode()
             if self.in_turn and now - self.last_audio > END_OF_TURN_S:
                 self.in_turn = False
                 self.queue.put_nowait(("end", None))
@@ -228,7 +276,9 @@ class Voice:
     async def _session(self):
         log(f"Gemini: conectando a {self.model}...")
         async with self.client.aio.live.connect(model=self.model, config=self.config) as session:
-            log("Gemini: listo. Habla con L1 del mando, tocando la pantalla del robot o con Enter aquí.")
+            log("Gemini: listo. " + ("Habla normal: te escucha siempre que el robot no está hablando. "
+                                     "Tocar la pantalla del robot, L1 o Enter silencian el micro." if self.hands_free else
+                                     "Habla con L1 del mando, tocando la pantalla del robot o con Enter aquí."))
             receiver = asyncio.create_task(self._receive(session))
             try:
                 while not receiver.done():
@@ -265,12 +315,17 @@ class Voice:
                     continue
                 if sc.input_transcription and sc.input_transcription.text:
                     self.heard.append(sc.input_transcription.text)
+                    if self.hands_free:
+                        # Sin botón no sabemos cuándo callaste: lo más parecido es la
+                        # última palabra transcrita (llega un poco tarde, así que la
+                        # latencia real es algo mayor).
+                        self.t_end, self.t_tool, self.t_audio = time.monotonic(), None, None
                 if sc.output_transcription and sc.output_transcription.text:
                     self.said.append(sc.output_transcription.text)
                 if sc.turn_complete or sc.interrupted:
                     if self.t_end:
                         ms = lambda t: f"{(t - self.t_end) * 1000:.0f} ms" if t else "-"  # noqa: E731
-                        log(f"Latencia desde que dejaste de hablar: función {ms(self.t_tool)}, primer audio {ms(self.t_audio)}"
+                        log(f"Latencia desde {'tu última palabra' if self.hands_free else 'que dejaste de hablar'}: función {ms(self.t_tool)}, primer audio {ms(self.t_audio)}"
                             + ("  (interrumpido)" if sc.interrupted else ""))
                         self.t_end = None
                     if self.heard:
@@ -313,7 +368,7 @@ def setup(relay):
     global _voice
     if not os.environ.get("GEMINI_API_KEY"):
         raise SystemExit("Falta la clave de Gemini: export GEMINI_API_KEY=... (consíguela en https://aistudio.google.com/apikey)")
-    _voice = Voice(relay, relay.args.modelo, relay.args.voz, not relay.args.sin_vision)
+    _voice = Voice(relay, relay.args.modelo, relay.args.voz, not relay.args.sin_vision, not relay.args.pulsar)
     relay.extra_robot_handlers[T_AUDIO_IN] = _voice.on_audio_in
     _voice.start()
 
@@ -324,6 +379,9 @@ def setup(relay):
                 input()
             except EOFError:
                 return
+            if _voice.hands_free:
+                _voice.toggle_mute()
+                continue
             talking = not talking
             relay.robot.cmd("mic on" if talking else "mic off")
             log("Micrófono del robot " + ("ABIERTO: habla y pulsa Enter al terminar" if talking else "cerrado"))

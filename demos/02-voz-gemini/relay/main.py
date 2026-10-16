@@ -2,7 +2,7 @@
 """Demo 02 - Voz con Gemini: pasarela del portátil.
 
     export GEMINI_API_KEY=...        # https://aistudio.google.com/apikey
-    ./run_relay.sh [--modelo ...] [--voz Puck] [--sin-vision]
+    ./run_relay.sh [--pulsar] [--modelo ...] [--voz Puck] [--sin-vision]
 
 Es la pasarela de la demo 01 más voice.py (Gemini Live). Los filtros están en
 processing.py y los botones en hooks.py.
@@ -25,4 +25,6 @@ if __name__ == "__main__":
     g.add_argument("--modelo", default="gemini-3.1-flash-live-preview", help="modelo de Gemini Live")
     g.add_argument("--voz", default="Puck", help="voz de Gemini: Puck, Charon, Kore, Fenrir, Aoede...")
     g.add_argument("--sin-vision", action="store_true", help="no enviar imágenes de la cámara a Gemini")
+    g.add_argument("--pulsar", action="store_true",
+                   help="pulsar para hablar (L1, toque o Enter) en vez de manos libres")
     main(hooks, processing, parser=parser, setup=voice.setup)

@@ -64,7 +64,7 @@ void setup() {
     cfg.output_power = true;
     M5.begin(cfg);
     Serial.begin(115200);
-    M5.Display.setBrightness(80);
+    M5.Display.setBrightness(30);   // más brillo calienta la pantalla y gasta batería
     drawFace();
     status.setColorDepth(16);
     status.createSprite(320, 44);
