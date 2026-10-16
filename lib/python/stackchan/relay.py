@@ -86,6 +86,7 @@ class Robot:
         self.pose_seq = 0
         self.want_video = False       # someone is watching: the robot only captures then
         self.uptime = None            # from HELLO: if it goes down, the robot rebooted
+        self.phone_control_paused_until = 0.0
         self.lock = threading.Lock()
 
     @property
@@ -137,6 +138,15 @@ class Robot:
         with self.lock:
             self.pose_seq += 1
             self.sock.sendto(P.pose_packet(self.pose_seq, pan, tilt), self.addr)
+
+    def pause_phone_control(self, seconds):
+        """Ignore the phone's head control for a while, so a pose set by code (or
+        by voice) isn't overwritten: in head-tracking mode the app resends the
+        user's head pose every 500 ms even when it doesn't change."""
+        self.phone_control_paused_until = time.monotonic() + seconds
+
+    def phone_control_paused(self):
+        return time.monotonic() < self.phone_control_paused_until
 
     def cmd(self, text):
         if self.online:
@@ -385,7 +395,8 @@ class Relay:
             except (KeyError, TypeError, ValueError):
                 return
             self.stats["ctrl"] += 1
-            self.robot.pose(pan, tilt)
+            if not self.robot.phone_control_paused():
+                self.robot.pose(pan, tilt)
         elif mtype == P.COMMAND and obj is not None:
             log(f"COMMAND {obj.get('cmd')}")
             if obj.get("cmd") == "home":

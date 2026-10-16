@@ -87,4 +87,4 @@ Además de todas las de la demo 01:
 | Responde a ruidos o a conversaciones de fondo | Silencia el micro (toque, L1 o Enter) o usa `--pulsar` |
 | La boca escucha (círculo verde) pero Gemini no contesta | Mira la terminal: si no aparece `Tú: …`, el audio no llega. Comprueba que el robot tiene el firmware de **esta** demo. |
 | No se oye la respuesta | El volumen está en `audio.cpp` (`setVolume`). La respuesta solo suena cuando el micrófono está cerrado. |
-| La cabeza vuelve a su sitio tras «mira a la izquierda» | En las gafas está activo el modo de control *Head*: manda la cabeza de la persona. Cambia a *View only* con □. |
+| La cabeza vuelve a su sitio unos segundos después de «mira a la izquierda» | Es lo esperado si las gafas controlan la cabeza (modo *Head*): la voz manda durante 10 s (`VOICE_HOLD_S` en `voice.py`) y después la cabeza vuelve a seguirte. Para mandar solo con la voz, pon la app en *View only* con □. |

@@ -35,6 +35,7 @@ OUT_CHUNK = 1180            # bytes de PCM por datagrama (cabe en 1200 con cabec
 END_OF_TURN_S = 0.3         # pulsar para hablar: sin audio del robot 300 ms = fin del turno
 FRAME_EVERY_S = 3.0         # manos libres: una imagen cada 3 s (más imágenes = respuestas más lentas)
 SILENCE_MS = 500            # manos libres: silencio que da tu turno por terminado
+VOICE_HOLD_S = 10.0         # tras mover la cabeza por voz, el control del móvil se ignora este tiempo
 
 INSTRUCCIONES = """Eres Stack-chan, un robot pequeño y simpático con una cámara en la cara.
 La persona que te habla lleva unas gafas de realidad virtual y ve lo que ve tu cámara.
@@ -124,7 +125,7 @@ class Voice:
             },
             "centrar_cabeza": {
                 "decl": types.FunctionDeclaration(name="centrar_cabeza", description="Pone la cabeza mirando al frente."),
-                "run": lambda args: (self.robot.cmd("home"), {"ok": True})[1],
+                "run": self.fn_centrar,
             },
             "color_leds": {
                 "decl": types.FunctionDeclaration(
@@ -167,8 +168,15 @@ class Voice:
 
     def fn_mover(self, args):
         import math
+        self.robot.pause_phone_control(VOICE_HOLD_S)
         self.robot.pose(math.radians(float(args.get("pan", 0))), math.radians(float(args.get("tilt", 0))))
-        return {"ok": True, "aviso": "si el modo de control de las gafas está activo, la cabeza volverá a seguir a la persona"}
+        return {"ok": True, "nota": f"durante {VOICE_HOLD_S:.0f} s; luego, si las gafas controlan la cabeza, vuelve a seguir a la persona"}
+
+    def fn_centrar(self, args):
+        self.robot.pause_phone_control(VOICE_HOLD_S)
+        self.robot.pose(0.0, 0.0)
+        self.robot.cmd("home")
+        return {"ok": True}
 
     def fn_volumen(self, args):
         nivel = max(0, min(100, int(args.get("nivel", 50))))
