@@ -135,7 +135,7 @@ Registros más usados (los valores de 2 bytes van con el **byte alto primero**):
 | `0x2E` | Velocidad |
 | `0x38` | Posición actual (lectura) |
 
-Implementación: `firmware/src/board.cpp` (`scsSend`, `scsWritePos`).
+Implementación: `lib/StackChanHW/src/board.cpp` (`scsSend`, `scsWritePos`).
 
 **Escala.** El datasheet da 3,41 pasos/°, pero el firmware oficial de Stack-chan y el nuestro usan **3,2 pasos/°** (183,35 pasos/rad). Cuál es exacta está **sin verificar**; la diferencia es de un 6 %.
 
@@ -154,7 +154,7 @@ Fuente: manual K151 y esquemáticos en [hardware/schematics/](hardware/schematic
 
 ### Coprocesador PY32L020 (I2C 0x6F)
 
-Microcontrolador Cortex-M0+ que hace de expansor de E/S. Lo que usamos (`firmware/src/board.cpp`):
+Microcontrolador Cortex-M0+ que hace de expansor de E/S. Lo que usamos (`lib/StackChanHW/src/board.cpp`):
 
 | Registro | Uso |
 |---|---|
@@ -168,7 +168,7 @@ Microcontrolador Cortex-M0+ que hace de expansor de E/S. Lo que usamos (`firmwar
 
 ## 4. Límites de movimiento y calibración
 
-Están en `firmware/include/config.h`. La app los recibe del robot y nunca pide valores fuera de ellos.
+Están en `lib/StackChanHW/src/stackchan_limits.h`. La app los recibe del robot y nunca pide valores fuera de ellos.
 
 | Eje | Ángulo | Radianes | Pasos permitidos | Centro |
 |---|---|---|---|---|
@@ -185,7 +185,7 @@ Están en `firmware/include/config.h`. La app los recibe del robot y nunca pide 
 
 | | |
 |---|---|
-| Entorno | PlatformIO, plataforma `espressif32@7.1.2` (`firmware/platformio.ini`) |
+| Entorno | PlatformIO, plataforma `espressif32@7.1.2` (`demos/*/firmware/platformio.ini`) |
 | Framework | Arduino-ESP32 2.0.17 (sobre ESP-IDF 4.4.7) |
 | Librería | M5Unified 0.2.21: pantalla, táctil, altavoz, PMIC e IMU |
 | Compilador | xtensa-esp32s3 GCC 8.4.0 |
@@ -209,7 +209,7 @@ El puerto USB lo crea el propio programa. Si el firmware se cuelga o entra en re
 **Modo descarga** (cuando el ordenador no ve el robot o el firmware está colgado):
 1. Conecta el USB-C. M5 recomienda el de la base, para que los motores no se muevan solos.
 2. Mantén pulsado **RST** unos 3 s, hasta que el LED de al lado se ponga **verde**, y suelta.
-3. Flashea normalmente (`./tools/flash.sh` o el botón → de PlatformIO).
+3. Flashea normalmente (`./tools/flash.sh <firmware>` o el botón → de PlatformIO).
 4. Pulsa RST una vez para arrancar el programa nuevo.
 
 **Volver al firmware de fábrica de M5:**

@@ -14,7 +14,7 @@ $Root = $PSScriptRoot
 $Venv = Join-Path $Root ".venv"
 $Py = Join-Path $Venv "Scripts\python.exe"
 $Pio = Join-Path $Venv "Scripts\pio.exe"
-$Secrets = Join-Path $Root "firmware\include\wifi_secrets.h"
+$Secrets = Join-Path $Root "config\wifi_secrets.h"
 
 function Bold($m) { Write-Host "`n$m" -ForegroundColor White }
 function Ok($m)   { Write-Host "  [OK] $m" -ForegroundColor Green }
@@ -36,7 +36,7 @@ function Ask-Wifi {
     $content = "// Generado por setup. NO lo subas al repo (esta en .gitignore).`n#pragma once`n" +
                "#define WIFI_SSID $(CStr $ssid)`n#define WIFI_PASS $(CStr $pass)`n"
     [IO.File]::WriteAllText($Secrets, $content, (New-Object Text.UTF8Encoding $false))
-    Ok "Guardada en firmware\include\wifi_secrets.h"
+    Ok "Guardada en config\wifi_secrets.h (la usan todos los firmwares)"
 }
 
 if ($Wifi) {
@@ -92,20 +92,25 @@ if (-not (Test-Path $Py)) {
 if ($LASTEXITCODE) { Die "Fallo instalando dependencias de Python" }
 Ok "platformio, opencv-python, numpy, pyserial"
 
-Bold "3/6 Toolchain del ESP32-S3 (descarga ~600 MB la primera vez)"
-& $Pio pkg install --project-dir firmware | Out-Null
-if ($LASTEXITCODE) { Die "Fallo descargando la toolchain" }
-Ok "Compilador, framework Arduino-ESP32 y M5Unified"
+Bold "3/6 Toolchains de ESP32 y ESP32-S3 (descarga ~1 GB la primera vez)"
+$Projects = Get-ChildItem demos -Recurse -Filter platformio.ini | Where-Object { $_.FullName -notmatch '\\.pio\\' } | ForEach-Object { $_.DirectoryName }
+foreach ($p in $Projects) {
+    & $Pio pkg install --project-dir $p | Out-Null
+    if ($LASTEXITCODE) { Die "Fallo descargando la toolchain de $p" }
+}
+Ok "Compiladores, framework Arduino-ESP32 y librerias de todas las demos"
 
 Bold "4/6 Wi-Fi del robot"
 if (Test-Path $Secrets) { Ok "Ya configurada. Para cambiarla: setup.bat -Wifi" } else { Ask-Wifi }
 
 Bold "5/6 Comprobacion"
-& $Py -m unittest discover -s relay/tests 2>$null | Out-Null
+& $Py -m unittest discover -s lib/python/tests 2>$null | Out-Null
 if ($LASTEXITCODE) { Warn "Fallan los tests de la pasarela" } else { Ok "Tests de la pasarela" }
-& $Pio run --project-dir firmware --silent | Out-Null
-if ($LASTEXITCODE) { Die "El firmware no compila: .venv\Scripts\pio run -d firmware" }
-Ok "El firmware compila"
+foreach ($p in $Projects) {
+    & $Pio run --project-dir $p --silent | Out-Null
+    if ($LASTEXITCODE) { Die "No compila ${p}: .venv\Scripts\pio run -d $p" }
+    Ok "Compila $(Resolve-Path -Relative $p)"
+}
 
 Bold "6/6 Robot por USB"
 $ports = & $Pio device list --json-output 2>$null | ConvertFrom-Json | Where-Object { $_.hwid -match "303A" }
@@ -114,11 +119,11 @@ if ($ports) { Ok "Robot detectado en $($ports[0].port)" } else {
     Warn "Si esta conectado y en el Administrador de dispositivos sale 'USB JTAG/serial debug unit' sin puerto COM,"
     Warn "falta el driver: ver docs\ROBOT.md, apartado 'Puerto USB en cada sistema'."
 }
-if ($Flash) { & (Join-Path $Root "tools\flash.ps1") }
+if ($Flash) { & (Join-Path $Root "tools\flash.ps1") -Project "demos\01-vr-cardboard\firmware" }
 
 Bold "Listo!"
-Write-Host "  Abrir el proyecto en VS Code:  code stackchan-vr.code-workspace"
-Write-Host "  Flashear el robot (USB-C):      tools\flash.bat"
-Write-Host "  Arrancar la pasarela:           run_relay.bat --show"
-Write-Host "  Probar sin robot:               .venv\Scripts\python tools\fake_robot.py"
+Write-Host "  Abrir el proyecto en VS Code:  code stackchan-curso.code-workspace"
+Write-Host "  Primera demo:                   demos\01-vr-cardboard\README.md"
+Write-Host "  Flashear un firmware:           tools\flash.bat   (sin argumentos lista los que hay)"
 Write-Host "  Asistente de IA (opcional):     irm https://claude.ai/install.ps1 | iex   (Claude Code)"
+Write-Host "  Demo 02 (voz):                  necesita GEMINI_API_KEY, ver demos\02-voz-gemini\README.md"

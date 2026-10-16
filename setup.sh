@@ -6,14 +6,14 @@
 #     ./setup.sh               instalación completa (pide sudo para lo del sistema)
 #     ./setup.sh --no-system   sin sudo: solo el entorno del proyecto (.venv, toolchain, Wi-Fi)
 #     ./setup.sh --wifi        solo vuelve a pedir la Wi-Fi del robot
-#     ./setup.sh --flash       al final, flashea el robot conectado por USB
+#     ./setup.sh --flash       al final, flashea la demo 01 en el robot conectado por USB
 #
 # Se puede ejecutar las veces que haga falta: lo ya instalado se salta.
 set -euo pipefail
 cd "$(dirname "$0")"
 ROOT=$(pwd)
 VENV="$ROOT/.venv"
-SECRETS="$ROOT/firmware/include/wifi_secrets.h"
+SECRETS="$ROOT/config/wifi_secrets.h"
 UDEV_RULES=/etc/udev/rules.d/99-platformio-udev.rules
 UDEV_URL=https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/system/99-platformio-udev.rules
 
@@ -39,7 +39,7 @@ with open(sys.argv[1], "w") as f:
     f.write(f"#define WIFI_SSID {c(os.environ['WIFI_SSID'])}\n#define WIFI_PASS {c(os.environ['WIFI_PASS'])}\n")
 PY
     chmod 600 "$SECRETS"
-    ok "Guardada en firmware/include/wifi_secrets.h"
+    ok "Guardada en config/wifi_secrets.h (la usan todos los firmwares)"
 }
 
 SYSTEM=1 FLASH=0 WIFI_ONLY=0
@@ -131,9 +131,12 @@ python3 -c 'import venv, ensurepip' 2>/dev/null || die "Falta python3-venv: sudo
 "$VENV/bin/python" -m pip install --quiet -r requirements.txt
 ok "$("$VENV/bin/pip" list 2>/dev/null | grep -i -E '^(platformio|opencv-python|numpy) ' | awk '{printf "%s %s  ", $1, $2}')"
 
-bold "5/7 Toolchain del ESP32-S3 (descarga ~600 MB la primera vez)"
-"$VENV/bin/pio" pkg install --project-dir firmware >/dev/null
-ok "Compilador, framework Arduino-ESP32 y M5Unified"
+bold "5/7 Toolchains de ESP32 y ESP32-S3 (descarga ~1 GB la primera vez)"
+PROJECTS=$(find demos -name platformio.ini -not -path '*/.pio/*' -exec dirname {} \; | sort)
+for p in $PROJECTS; do
+    "$VENV/bin/pio" pkg install --project-dir "$p" >/dev/null
+done
+ok "Compiladores, framework Arduino-ESP32 y librerías de todas las demos"
 
 bold "6/7 Wi-Fi del robot"
 if [ -f "$SECRETS" ]; then
@@ -143,17 +146,19 @@ else
 fi
 
 bold "7/7 Comprobación"
-"$VENV/bin/python" -m unittest discover -s relay/tests >/dev/null 2>&1 && ok "Tests de la pasarela" || warn "Fallan los tests: .venv/bin/python -m unittest discover -s relay/tests -v"
-"$VENV/bin/pio" run --project-dir firmware --silent >/dev/null && ok "El firmware compila" || die "El firmware no compila: .venv/bin/pio run -d firmware"
+"$VENV/bin/python" -m unittest discover -s lib/python/tests >/dev/null 2>&1 && ok "Tests de la pasarela" || warn "Fallan los tests: .venv/bin/python -m unittest discover -s lib/python/tests -v"
+for p in $PROJECTS; do
+    "$VENV/bin/pio" run --project-dir "$p" --silent >/dev/null && ok "Compila $p" || die "No compila $p: .venv/bin/pio run -d $p"
+done
 if ls /dev/ttyACM* >/dev/null 2>&1; then ok "Robot detectado en $(ls /dev/ttyACM* | head -1)"; else warn "No veo el robot por USB (normal si no está conectado)"; fi
 
-if [ "$FLASH" = 1 ]; then ./tools/flash.sh; fi
+if [ "$FLASH" = 1 ]; then ./tools/flash.sh demos/01-vr-cardboard/firmware; fi
 
 bold "¡Listo!"
 cat <<MSG
-  Abrir el proyecto en VS Code:  code stackchan-vr.code-workspace
-  Flashear el robot (USB-C):      ./tools/flash.sh
-  Arrancar la pasarela:           ./run_relay.sh --show
-  Probar sin robot:               .venv/bin/python tools/fake_robot.py
+  Abrir el proyecto en VS Code:  code stackchan-curso.code-workspace
+  Primera demo:                   cat demos/01-vr-cardboard/README.md
+  Flashear un firmware:           ./tools/flash.sh   (sin argumentos lista los que hay)
   Asistente de IA (opcional):     curl -fsSL https://claude.ai/install.sh | bash   (Claude Code)
+  Demo 02 (voz):                  necesita GEMINI_API_KEY, ver demos/02-voz-gemini/README.md
 MSG

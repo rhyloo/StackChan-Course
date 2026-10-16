@@ -1,0 +1,8 @@
+{
+  "name": "StackChanLink",
+  "version": "1.0.0",
+  "description": "UDP link between Stack-chan and the laptop relay: pairing, camera streaming, telemetry, head pose and extension hooks for demos.",
+  "frameworks": "arduino",
+  "platforms": "espressif32",
+  "dependencies": { "StackChanHW": "*" }
+}

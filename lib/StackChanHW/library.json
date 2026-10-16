@@ -1,0 +1,8 @@
+{
+  "name": "StackChanHW",
+  "version": "1.0.0",
+  "description": "Stack-chan K151 + CoreS3 hardware shared by the course demos: servos, base LEDs, battery current (INA226) and the GC0308 camera.",
+  "frameworks": "arduino",
+  "platforms": "espressif32",
+  "dependencies": { "m5stack/M5Unified": "0.2.21" }
+}
