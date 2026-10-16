@@ -1,0 +1,5 @@
+# Entorno del curso Stack-chan VR (lo instala setup.sh en .venv/)
+platformio>=6.1,<7      # compilar y flashear el firmware del robot
+pyserial>=3.5           # monitor serie
+numpy>=1.26
+opencv-python>=4.9      # procesado de vídeo en el portátil (relay/processing.py) y ventana --show
