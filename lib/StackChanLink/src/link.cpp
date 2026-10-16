@@ -6,6 +6,7 @@
 #include <WiFi.h>
 #include <lwip/sockets.h>
 #include <esp_heap_caps.h>
+#include <esp_system.h>
 
 // --- Protocol (keep in sync with relay/protocol.py) ---
 static constexpr uint8_t MAGIC0 = 0x53, MAGIC1 = 0x56, VERSION = 1;
@@ -197,6 +198,21 @@ static void videoTask(void*) {
     }
 }
 
+static const char* resetReason() {
+    switch (esp_reset_reason()) {
+    case ESP_RST_POWERON: return "power_on";
+    case ESP_RST_SW: return "software";
+    case ESP_RST_PANIC: return "panic";        // crash: exception or abort()
+    case ESP_RST_INT_WDT: return "int_watchdog";
+    case ESP_RST_TASK_WDT: return "task_watchdog";
+    case ESP_RST_WDT: return "watchdog";
+    case ESP_RST_BROWNOUT: return "brownout";  // the voltage dropped (servos, battery)
+    case ESP_RST_DEEPSLEEP: return "deep_sleep";
+    case ESP_RST_EXT: return "external";
+    default: return "unknown";
+    }
+}
+
 // HELLO (broadcast until a relay answers, then unicast) and TELEMETRY.
 static void helloTask(void*) {
     static char json[300];
@@ -210,9 +226,9 @@ static void helloTask(void*) {
         if (now - lastHello >= HELLO_PERIOD_MS) {
             lastHello = now;
             int n = snprintf(json, sizeof(json),
-                "{\"name\":\"stackchan-%s\",\"fw\":\"" FW_VERSION "\",\"ip\":\"%s\","
+                "{\"name\":\"stackchan-%s\",\"fw\":\"" FW_VERSION "\",\"ip\":\"%s\",\"uptime_s\":%u,\"reset\":\"%s\","
                 "\"limits\":{\"pan\":[%.4f,%.4f],\"tilt\":[%.4f,%.4f]}}",
-                robotId(), WiFi.localIP().toString().c_str(),
+                robotId(), WiFi.localIP().toString().c_str(), (unsigned)(millis() / 1000), resetReason(),
                 PAN_MIN, PAN_MAX, TILT_MIN, TILT_MAX);
             putHeader(pkt, T_HELLO);
             memcpy(pkt + 4, json, n);

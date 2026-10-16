@@ -9,12 +9,15 @@ Shared by the demos: each demo calls main() with its own `hooks` module
 do with every video frame). See demos/01-vr-cardboard/relay/.
 """
 import argparse
+import faulthandler
 import os
+import shutil
 import signal
 import socket
 import sys
 import threading
 import time
+import traceback
 
 from . import protocol as P
 
@@ -22,9 +25,46 @@ PHONE_TIMEOUT = 3.0     # drop a phone after 3 s without HELLO (app spec 3.1)
 ROBOT_TIMEOUT = 3.0
 
 
+_logfile = None          # with --debug, everything also goes here
+_debug = False
+
+
 def log(msg):
-    sys.stdout.write("\r\033[K" + time.strftime("%H:%M:%S ") + msg + "\n")
+    line = time.strftime("%H:%M:%S ") + msg
+    sys.stdout.write("\r\033[K" + line + "\n")
     sys.stdout.flush()
+    if _logfile:
+        _logfile.write(line + "\n")
+        _logfile.flush()
+
+
+def debug(msg):
+    """Only with --debug: to the log file, not to the screen."""
+    if _logfile:
+        _logfile.write(time.strftime("%H:%M:%S ") + "[debug] " + msg + "\n")
+        _logfile.flush()
+
+
+def log_exception(where):
+    log(f"ERROR en {where}: {sys.exc_info()[1]!r}" + ("" if _debug else "  (más detalle con --debug)"))
+    debug(traceback.format_exc())
+
+
+def start_debug_log(directory="logs"):
+    """--debug: log file, tracebacks from every thread and a dump if Python itself crashes."""
+    global _logfile, _debug
+    os.makedirs(directory, exist_ok=True)
+    path = os.path.join(directory, time.strftime("relay-%Y%m%d-%H%M%S.log"))
+    _logfile = open(path, "w", buffering=1)
+    _debug = True
+    faulthandler.enable(_logfile, all_threads=True)
+
+    def hook(args):
+        log(f"ERROR no capturado en el hilo {args.thread.name}: {args.exc_value!r}")
+        debug("".join(traceback.format_exception(args.exc_type, args.exc_value, args.exc_traceback)))
+    threading.excepthook = hook
+    log(f"Modo depuración: todo se guarda en {path}")
+    return path
 
 
 def clamp(v, lo, hi):
@@ -45,6 +85,7 @@ class Robot:
         self.seen = {}                # name -> ip, every robot announcing on the network
         self.pose_seq = 0
         self.want_video = False       # someone is watching: the robot only captures then
+        self.uptime = None            # from HELLO: if it goes down, the robot rebooted
         self.lock = threading.Lock()
 
     @property
@@ -62,6 +103,18 @@ class Robot:
             return
         if self.addr != addr:
             log(f"Paired with robot {name} at {addr[0]}")
+        uptime = info.get("uptime_s")
+        if isinstance(uptime, (int, float)) and self.uptime is not None and uptime + 2 < self.uptime:
+            reason = info.get("reset", "?")
+            hint = {"panic": "el programa ha fallado: mira tools/serial_log.py",
+                    "brownout": "ha caído la tensión: batería baja o pico de los servos",
+                    "task_watchdog": "una tarea se ha quedado bloqueada",
+                    "int_watchdog": "una interrupción se ha quedado bloqueada"}.get(reason, "")
+            log(f"El robot se ha REINICIADO. Motivo: {reason}" + (f" ({hint})" if hint else ""))
+        if isinstance(uptime, (int, float)):
+            if self.uptime is None:
+                debug(f"robot uptime {uptime} s, último reinicio: {info.get('reset')}")
+            self.uptime = uptime
         self.addr, self.name = addr, name
         self.last_seen = time.monotonic()
         lim = info.get("limits")
@@ -184,6 +237,8 @@ class Relay:
             self.subscribe = {"rates": rates, "events": [e.strip() for e in args.events.split(",") if e.strip()]}
         self.recorder = None
         self.running = True
+        self._last_frame_error = 0.0
+        self._last_status_log = 0.0
 
     @staticmethod
     def _bind(port, broadcast):
@@ -227,7 +282,10 @@ class Relay:
                 if t is not None:
                     self.robot.telemetry = t
             elif mtype in self.extra_robot_handlers:
-                self.extra_robot_handlers[mtype](payload, addr)
+                try:
+                    self.extra_robot_handlers[mtype](payload, addr)
+                except Exception:
+                    log_exception(f"mensaje del robot 0x{mtype:02x}")
 
     # ---- video worker: optional processing, then out to the phones ----
     def video_loop(self):
@@ -240,21 +298,17 @@ class Relay:
             if item is None:
                 continue
             _, jpeg, capture_ms = item
-            if self.decode:
-                frame = cv2.imdecode(np.frombuffer(jpeg, np.uint8), cv2.IMREAD_COLOR)
-                if frame is None:
-                    continue
-                frame = self.processing.process(frame, self.args)
-                ok, enc = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, self.args.quality])
-                if not ok:
-                    continue
-                jpeg = enc.tobytes()
-                if self.args.show:
-                    cv2.imshow("Stack-chan VR relay", frame)
-                    if cv2.waitKey(1) & 0xFF == ord("q"):
-                        self.running = False
-                if self.args.record:
-                    self._record(cv2, frame)
+            try:
+                jpeg = self._prepare_frame(jpeg, cv2, np)
+            except Exception:
+                # A bug in processing.py must not stop the video: log it, at most once per second.
+                now = time.monotonic()
+                if now - self._last_frame_error > 1.0:
+                    self._last_frame_error = now
+                    log_exception("processing.process()")
+                continue
+            if jpeg is None:
+                continue
             if self.phones.clients:
                 self.out_frame_id = (self.out_frame_id + 1) & 0xFFFFFFFF
                 try:
@@ -263,6 +317,25 @@ class Relay:
                     self.stats["out"] += 1
                 except ValueError as e:
                     log(f"Frame not sent: {e}")
+
+    def _prepare_frame(self, jpeg, cv2, np):
+        """Decode + process + re-encode if needed. Returns the JPEG to send, or None to skip."""
+        if not self.decode:
+            return jpeg
+        frame = cv2.imdecode(np.frombuffer(jpeg, np.uint8), cv2.IMREAD_COLOR)
+        if frame is None:
+            return None
+        frame = self.processing.process(frame, self.args)
+        ok, enc = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, self.args.quality])
+        if not ok:
+            return None
+        if self.args.show:
+            cv2.imshow("Stack-chan relay", frame)
+            if cv2.waitKey(1) & 0xFF == ord("q"):
+                self.running = False
+        if self.args.record:
+            self._record(cv2, frame)
+        return enc.tobytes()
 
     def _record(self, cv2, frame):
         if self.recorder is None:
@@ -287,8 +360,8 @@ class Relay:
                 continue
             try:
                 self.handle_phone(msg[0], msg[1], addr)
-            except Exception as e:  # a bad packet or a bug in hooks.py must not kill the relay
-                log(f"Error handling packet 0x{msg[0]:02x}: {e!r}")
+            except Exception:  # a bad packet or a bug in hooks.py must not kill the relay
+                log_exception(f"paquete del móvil 0x{msg[0]:02x} (hooks.py)")
 
     def handle_phone(self, mtype, payload, addr):
         if mtype == P.DISCOVER:
@@ -400,7 +473,16 @@ class Relay:
         line = (f"{robot} | phones {len(self.phones.clients)} out {self.relay_fps:.1f}fps "
                 f"ctrl {self.stats['ctrl'] / dt:.0f}/s drop {self.assembler.dropped} {sensors}")
         self.stats["ctrl"] = 0
-        sys.stdout.write("\r\033[K" + line[:200])
+        now = time.monotonic()
+        if now - self._last_status_log >= 10:
+            self._last_status_log = now
+            debug("estado: " + line)
+        if self.args.quiet or not sys.stdout.isatty():
+            return
+        # Exactly one terminal line: a longer one wraps and "\r" only rewrites
+        # the last piece, so the screen fills up with copies.
+        width = shutil.get_terminal_size((100, 20)).columns - 1
+        sys.stdout.write("\r\033[K" + line[:width])
         sys.stdout.flush()
 
 
@@ -420,6 +502,9 @@ def build_parser(description="Stack-chan laptop relay (robot <-> phone)"):
     p.add_argument("--sensors", default="", help="phone sensors to subscribe, e.g. accelerometer=20,light=2")
     p.add_argument("--events", default="", help="phone events to subscribe, e.g. shake,touch,proximity")
     p.add_argument("-v", "--verbose", action="store_true", help="print buttons and BLE scans")
+    p.add_argument("-q", "--quiet", action="store_true", help="no status line (only events and errors)")
+    p.add_argument("--debug", action="store_true",
+                   help="save everything (errors with traceback, Gemini messages, robot reboots) to logs/")
     return p
 
 
@@ -439,6 +524,8 @@ def main(hooks, processing, parser=None, setup=None, argv=None):
     args = (parser or build_parser()).parse_args(argv)
     # Stop cleanly on SIGTERM too, so a recording is closed properly.
     signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(KeyboardInterrupt))
+    if args.debug:
+        start_debug_log()
     relay = Relay(args, hooks, processing)
     if setup:
         setup(relay)

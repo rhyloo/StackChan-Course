@@ -12,3 +12,4 @@ relay/recordings/
 *.bin
 demos/*/relay/fotos/
 fotos/
+logs/

@@ -1,11 +1,11 @@
 # Demo 02 · Voz con Gemini
 
-La demo 01 más voz. Le hablas al robot y [Gemini Live](https://ai.google.dev/gemini-api/docs/live) te entiende, te responde por el altavoz del robot y ejecuta funciones: cambiar el filtro de la imagen, mover la cabeza, los LEDs, guardar fotos… Mientras hablas también ve lo que ve la cámara, así que le puedes preguntar «¿qué ves?».
+La demo 01 más voz. Le hablas al robot y [Gemini Live](https://ai.google.dev/gemini-api/docs/live) te entiende, te responde por el altavoz del robot y ejecuta funciones: cambiar el filtro de la imagen, mover la cabeza, los LEDs, guardar fotos… Al empezar a hablar ve lo que ve la cámara, así que le puedes preguntar «¿qué ves?».
 
 ```
 micro del robot --AUDIO_IN 16 kHz--> pasarela --> Gemini Live --> voz --AUDIO_OUT 24 kHz--> altavoz del robot
                                         ^                    └-> llamada a función: activar_filtro("nocturna")
-cámara del robot --JPEG------------------┘ (1 fotograma por segundo mientras hablas)
+cámara del robot --JPEG------------------┘ (un fotograma al empezar cada turno)
 ```
 
 **Por qué Gemini corre en el portátil y no en el robot**, como hacía el proyecto Mika:

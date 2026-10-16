@@ -14,6 +14,7 @@ Enter en esta terminal o un toque en la pantalla del robot.
 """
 import asyncio
 import os
+import queue
 import threading
 import time
 from datetime import datetime
@@ -23,13 +24,12 @@ from google import genai
 from google.genai import types
 
 import processing
-from stackchan.relay import log
+from stackchan.relay import debug, log
 
 T_AUDIO_IN = 0x26
 T_AUDIO_OUT = 0x27
 OUT_CHUNK = 1180            # bytes de PCM por datagrama (cabe en 1200 con cabecera y seq)
 END_OF_TURN_S = 0.3         # sin audio del robot durante 300 ms = has terminado de hablar
-FRAME_EVERY_S = 1.0         # mientras hablas, Gemini recibe un fotograma por segundo
 
 INSTRUCCIONES = """Eres Stack-chan, un robot pequeño y simpático con una cámara en la cara.
 La persona que te habla lleva unas gafas de realidad virtual y ve lo que ve tu cámara.
@@ -63,6 +63,10 @@ class Voice:
         self.said = []                # transcripción de la respuesta en curso
         self.heard = []
         self.photos_dir = os.path.join(os.getcwd(), "fotos")
+        self.out_queue = queue.Queue()  # audio para el robot, lo envía su propio hilo
+        self.t_end = None               # cuándo terminaste de hablar (para medir la latencia)
+        self.t_tool = None
+        self.t_audio = None
         self.config = types.LiveConnectConfig(
             response_modalities=["AUDIO"],
             system_instruction=INSTRUCCIONES,
@@ -160,6 +164,12 @@ class Voice:
             self.in_turn = True
             self.heard = []
             self._put(("start", None))
+            # Una sola imagen por turno, al empezar: cada imagen se queda en el
+            # contexto de la sesión y hace más lentas todas las respuestas siguientes.
+            if self.vision and processing.ultimo_fotograma is not None:
+                ok, jpg = cv2.imencode(".jpg", processing.ultimo_fotograma, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                if ok:
+                    self._put(("frame", jpg.tobytes()))
         self._put(("audio", payload[4:]))
 
     def _put(self, item):
@@ -167,6 +177,7 @@ class Voice:
 
     def start(self):
         threading.Thread(target=self.loop.run_forever, daemon=True).start()
+        threading.Thread(target=self._audio_out_loop, daemon=True, name="audio_out").start()
         asyncio.run_coroutine_threadsafe(self._main(), self.loop)
 
     # ------------------------------------------------------------------ asyncio
@@ -181,15 +192,9 @@ class Voice:
                 await asyncio.sleep(2)
 
     async def _turn_watchdog(self):
-        last_frame = 0.0
         while True:
             await asyncio.sleep(0.05)
             now = time.monotonic()
-            if self.in_turn and self.vision and now - last_frame >= FRAME_EVERY_S and processing.ultimo_fotograma is not None:
-                last_frame = now
-                ok, jpg = cv2.imencode(".jpg", processing.ultimo_fotograma, [cv2.IMWRITE_JPEG_QUALITY, 70])
-                if ok:
-                    self.queue.put_nowait(("frame", jpg.tobytes()))
             if self.in_turn and now - self.last_audio > END_OF_TURN_S:
                 self.in_turn = False
                 self.queue.put_nowait(("end", None))
@@ -213,6 +218,7 @@ class Voice:
                         await session.send_realtime_input(video=types.Blob(data=data, mime_type="image/jpeg"))
                     elif kind == "end":
                         await session.send_realtime_input(activity_end=types.ActivityEnd())
+                        self.t_end, self.t_tool, self.t_audio = time.monotonic(), None, None
                 receiver.result()   # propaga el error si la recepción falló
             finally:
                 receiver.cancel()
@@ -221,8 +227,12 @@ class Voice:
         while True:
             async for msg in session.receive():
                 if msg.data:
-                    self._send_audio_out(msg.data)
+                    if self.t_end and self.t_audio is None:
+                        self.t_audio = time.monotonic()
+                    self.out_queue.put(msg.data)
                 if msg.tool_call:
+                    if self.t_end and self.t_tool is None:
+                        self.t_tool = time.monotonic()
                     await self._run_tools(session, msg.tool_call.function_calls)
                 sc = msg.server_content
                 if sc is None:
@@ -232,6 +242,11 @@ class Voice:
                 if sc.output_transcription and sc.output_transcription.text:
                     self.said.append(sc.output_transcription.text)
                 if sc.turn_complete or sc.interrupted:
+                    if self.t_end:
+                        ms = lambda t: f"{(t - self.t_end) * 1000:.0f} ms" if t else "-"  # noqa: E731
+                        log(f"Latencia desde que dejaste de hablar: función {ms(self.t_tool)}, primer audio {ms(self.t_audio)}"
+                            + ("  (interrumpido)" if sc.interrupted else ""))
+                        self.t_end = None
                     if self.heard:
                         log("Tú: " + "".join(self.heard).strip())
                         self.heard = []
@@ -250,17 +265,21 @@ class Voice:
             except Exception as e:
                 result = {"error": str(e)}
             log(f"Gemini -> {fc.name}({dict(fc.args or {})}) = {result}")
+            debug(f"tool_call id={fc.id}")
             responses.append(types.FunctionResponse(id=fc.id, name=fc.name, response=result))
         await session.send_tool_response(function_responses=responses)
 
-    def _send_audio_out(self, pcm):
-        """Voz de Gemini (PCM 24 kHz) al altavoz del robot, en trozos que caben en un datagrama."""
-        if not self.robot.online:
-            return
-        for i in range(0, len(pcm), OUT_CHUNK):
-            self.out_seq = (self.out_seq + 1) & 0xFFFFFFFF
-            self.robot.send(T_AUDIO_OUT, self.out_seq.to_bytes(4, "big") + pcm[i:i + OUT_CHUNK])
-            time.sleep(0.002)   # no saturar la cola de recepción del ESP32
+    def _audio_out_loop(self):
+        """Voz de Gemini (PCM 24 kHz) al altavoz del robot, en trozos que caben en un
+        datagrama. Va en su propio hilo para no frenar la recepción de Gemini."""
+        while True:
+            pcm = self.out_queue.get()
+            if not self.robot.online:
+                continue
+            for i in range(0, len(pcm), OUT_CHUNK):
+                self.out_seq = (self.out_seq + 1) & 0xFFFFFFFF
+                self.robot.send(T_AUDIO_OUT, self.out_seq.to_bytes(4, "big") + pcm[i:i + OUT_CHUNK])
+                time.sleep(0.002)   # no saturar la cola de recepción del ESP32
 
 
 def setup(relay):
