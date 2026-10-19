@@ -1,5 +1,6 @@
 #include "audio.h"
 #include "link.h"
+#include "board.h"
 #include <M5Unified.h>
 
 static constexpr uint8_t T_AUDIO_IN = 0x26;    // robot -> laptop: u32 seq + PCM16LE 16 kHz mono
@@ -24,6 +25,7 @@ static volatile uint32_t s_lastOutMs = 0;
 static volatile bool s_speaking = false;
 static volatile uint32_t s_spokeUntilMs = 0;
 static uint32_t s_lastOutSeq = 0;
+static volatile int s_beepHz = 0, s_beepMs = 0;   // pending beep, played by the audio task
 
 static size_t buffered() { return (s_head + OUT_RING - s_tail) % OUT_RING; }
 static bool answerArriving() { return millis() - s_lastOutMs < OUT_IDLE_MS; }
@@ -32,7 +34,7 @@ static bool answerArriving() { return millis() - s_lastOutMs < OUT_IDLE_MS; }
 static bool wantMic() {
     if (!s_handsFree) return s_pushToTalk;
     if (s_muted || s_speaking || buffered() > 0 || answerArriving()) return false;
-    return millis() - s_spokeUntilMs > REOPEN_MIC_MS;
+    return (int32_t)(millis() - s_spokeUntilMs) > (int32_t)REOPEN_MIC_MS;   // signed: a beep sets it in the future
 }
 
 static void onMessage(uint8_t type, const uint8_t* p, size_t len) {
@@ -60,6 +62,11 @@ static bool onCommand(const char* cmd) {
     if (!strcmp(cmd, "mic unmute")) { s_muted = false; return true; }
     if (!strcmp(cmd, "listen auto")) { s_handsFree = true; return true; }
     if (!strcmp(cmd, "listen manual")) { s_handsFree = false; s_pushToTalk = false; return true; }
+    if (!strncmp(cmd, "tone ", 5)) {     // instead of the link's tone: see audioBeep()
+        int hz = 0, ms = 0;
+        if (sscanf(cmd + 5, "%d %d", &hz, &ms) == 2 && hz >= 100 && hz <= 8000 && ms > 0 && ms <= 2000) audioBeep(hz, ms);
+        return true;
+    }
     if (!strncmp(cmd, "volume ", 7)) {
         s_volume = constrain(atoi(cmd + 7), 0, 255);
         s_volumeChanged = true;
@@ -77,7 +84,8 @@ static void audioTask(void*) {
     uint32_t micSeq = 0;
     int micIdx = 0, queued = 0, outIdx = 0;
     for (;;) {
-        bool listen = wantMic();
+        bool listen = wantMic() && !s_beepHz;
+        if (listen != s_micOn) i2cLock();   // switching reconfigures the codec and the amp over I2C
         if (listen && !s_micOn) {
             M5.Speaker.stop();
             M5.Speaker.end();
@@ -85,11 +93,13 @@ static void audioTask(void*) {
             M5.Mic.begin();
             s_micOn = true;
             micIdx = queued = 0;
+            i2cUnlock();
         } else if (!listen && s_micOn) {
             M5.Mic.end();
             M5.Speaker.begin();
             M5.Speaker.setVolume(s_volume);
             s_micOn = false;
+            i2cUnlock();
         }
 
         if (s_micOn) {
@@ -107,8 +117,15 @@ static void audioTask(void*) {
             continue;
         }
 
+        if (s_beepHz) {
+            M5.Speaker.tone(s_beepHz, s_beepMs);
+            s_spokeUntilMs = millis() + s_beepMs;   // the mic reopens once the beep is over
+            s_beepHz = 0;
+        }
+
         if (s_volumeChanged) {
             s_volumeChanged = false;
+            I2CGuard lock;
             M5.Speaker.setVolume(s_volume);
         }
 
@@ -134,6 +151,13 @@ void audioStart() {
     linkSetMessageHandler(onMessage);
     M5.Speaker.setVolume(s_volume);
     xTaskCreatePinnedToCore(audioTask, "audio", 6144, nullptr, 3, nullptr, 1);
+}
+
+bool audioCommand(const char* cmd) { return onCommand(cmd); }
+
+void audioBeep(int hz, int ms) {
+    s_beepMs = ms;
+    s_beepHz = hz;
 }
 
 void audioTap() {

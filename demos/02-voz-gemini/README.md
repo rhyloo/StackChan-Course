@@ -25,19 +25,16 @@ cámara del robot --JPEG------------------┘ (un fotograma al empezar cada turn
 
 ## Paso a paso
 
-1. **Flashea el robot:**
+1. **Conecta el robot por USB-C y ejecuta:**
    ```bash
-   ./tools/flash.sh demos/02-voz-gemini/firmware
+   demos/02-voz-gemini/run.sh       # Windows: demos\02-voz-gemini\run.bat
    ```
-2. **Arranca la pasarela:**
-   ```bash
-   demos/02-voz-gemini/run_relay.sh       # Windows: demos\02-voz-gemini\run_relay.bat
-   ```
-   Espera a ver `Gemini: listo`.
+   Compila el firmware, lo sube al robot y arranca la pasarela. Espera a ver `Gemini: listo`.
+2. **La próxima vez**, si no has cambiado el firmware: `run.sh --sin-flashear` (o `run_relay.sh`, que solo arranca la pasarela).
 3. **Habla normal**, como con una persona. El robot te escucha siempre que él no está hablando (boca con un círculo verde), y Gemini detecta solo cuándo has terminado (medio segundo de silencio).
    - **Para que deje de escucharte**, toca su pantalla, pulsa L1 en el mando o Enter en la terminal. Lo mismo para reactivarlo.
    - **Mientras el robot habla no te oye.** El micrófono y el altavoz comparten el mismo bus de audio del CoreS3, así que no se le puede interrumpir.
-   - **Modo walkie-talkie:** `run_relay.sh --pulsar`. Hablas solo mientras mantienes L1, o entre dos toques de pantalla o dos Enter. Va mejor en sitios ruidosos.
+   - **Modo walkie-talkie:** `run.sh --pulsar`. Hablas solo mientras mantienes L1, o entre dos toques de pantalla o dos Enter. Va mejor en sitios ruidosos.
 
 Prueba con:
 - «Activa la visión nocturna»

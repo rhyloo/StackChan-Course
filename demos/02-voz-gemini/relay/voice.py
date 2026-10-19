@@ -59,6 +59,8 @@ def push_to_talk(pressed, robot, phone):
 
 
 class Voice:
+    instrucciones = INSTRUCCIONES   # una demo que herede de Voice puede cambiarlas
+
     def __init__(self, relay, model, voice_name, vision, hands_free):
         self.relay = relay
         self.robot = relay.robot
@@ -84,7 +86,7 @@ class Voice:
         self.t_audio = None
         self.config = types.LiveConnectConfig(
             response_modalities=["AUDIO"],
-            system_instruction=INSTRUCCIONES,
+            system_instruction=self.instrucciones,
             speech_config=types.SpeechConfig(voice_config=types.VoiceConfig(
                 prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=voice_name))),
             tools=[types.Tool(function_declarations=[f["decl"] for f in self.functions().values()])],
@@ -350,7 +352,10 @@ class Voice:
         for fc in calls:
             f = self.functions().get(fc.name)
             try:
-                result = f["run"](dict(fc.args or {})) if f else {"error": "función desconocida"}
+                # En un hilo aparte: una función que espera (p. ej. a que acerques una
+                # tarjeta) no debe parar la recepción de Gemini.
+                result = await asyncio.get_running_loop().run_in_executor(None, f["run"], dict(fc.args or {})) \
+                    if f else {"error": "función desconocida"}
             except Exception as e:
                 result = {"error": str(e)}
             log(f"Gemini -> {fc.name}({dict(fc.args or {})}) = {result}")
@@ -371,12 +376,13 @@ class Voice:
                 time.sleep(0.002)   # no saturar la cola de recepción del ESP32
 
 
-def setup(relay):
-    """Engancha la voz a la pasarela (main.py la llama antes de arrancar)."""
+def setup(relay, voice_class=Voice):
+    """Engancha la voz a la pasarela (main.py la llama antes de arrancar). Otra
+    demo puede pasar su propia subclase de Voice, con otras funciones."""
     global _voice
     if not os.environ.get("GEMINI_API_KEY"):
         raise SystemExit("Falta la clave de Gemini: export GEMINI_API_KEY=... (consíguela en https://aistudio.google.com/apikey)")
-    _voice = Voice(relay, relay.args.modelo, relay.args.voz, not relay.args.sin_vision, not relay.args.pulsar)
+    _voice = voice_class(relay, relay.args.modelo, relay.args.voz, not relay.args.sin_vision, not relay.args.pulsar)
     relay.extra_robot_handlers[T_AUDIO_IN] = _voice.on_audio_in
     _voice.start()
 

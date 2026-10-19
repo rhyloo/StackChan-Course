@@ -7,6 +7,8 @@ Demos para aprender a programar [Stack-chan](docs/ROBOT.md), un robot de escrito
 | [01 · VR con Cardboard](demos/01-vr-cardboard/) | Ves por los ojos del robot con unas Cardboard y mueves su cabeza girando la tuya o con un mando de PS4. El portátil puede procesar la imagen (OpenCV). | Robot, portátil, móvil Android con la app [Stack-chan VR](https://github.com/rhyloo/StackChan-VR), Cardboard. Opcional: mando de PS4. |
 | [02 · Voz con Gemini](demos/02-voz-gemini/) | La demo 01 más voz: le hablas al robot («activa la visión nocturna», «¿qué ves?», «mira a la izquierda») y Gemini Live entiende, responde por el altavoz del robot y ejecuta funciones. | Lo de la demo 01 (el móvil es opcional) y una [clave de Gemini](https://aistudio.google.com/apikey). |
 | [03 · Balizas ESP-NOW](demos/03-espnow-balizas/) | Tres ESP32 hacen de balizas por ESP-NOW. El robot mide su señal, sabe cuál tiene más cerca y el portátil estima su posición en un mapa. | Robot, 3 placas ESP32 DevKit, portátil. |
+| [04 · Lector NFC](demos/04-nfc/) | Acercas una tarjeta o pegatina NFC a la base y el robot enseña en pantalla su número de serie, su tipo y lo que lleva escrito (texto, URL…). | Robot y etiquetas NFC (NTAG, MIFARE). Opcional: móvil con NFC para escribirlas. |
+| [05 · Tarjetas NFC por voz](demos/05-nfc-voz/) | Le dices lo que quieres guardar («escribe en la tarjeta: …»), acercas la tarjeta y el robot lo escribe. También te lee lo que pone. | Robot, portátil, tarjetas NTAG y una [clave de Gemini](https://aistudio.google.com/apikey). |
 
 ```
 demos/                 una carpeta por demo: firmware, código del portátil y README
@@ -47,7 +49,17 @@ Después, abre el curso en VS Code: `code stackchan-curso.code-workspace`. Lo qu
 - No sirven las redes que aíslan a los clientes entre sí, como eduroam o las de invitados. Usa un router propio o el móvil como punto de acceso.
 - Para cambiar de red: `./setup.sh --wifi` (o `setup.bat -Wifi`) y vuelve a flashear.
 
-## Flashear
+## Usar una demo
+
+Conecta el robot por USB-C y ejecuta el `run.sh` de la demo (en Windows, `run.bat`). Comprueba que todo está listo, compila, sube el firmware al robot y arranca lo que la demo necesita en el portátil:
+
+```bash
+./demo.sh                          # menú: eliges la demo por su número (Windows: demo.bat)
+demos/02-voz-gemini/run.sh         # o directamente la que quieras
+demos/02-voz-gemini/run.sh --sin-flashear   # sin volver a subir el firmware
+```
+
+## Flashear a mano
 
 ```bash
 ./tools/flash.sh                                    # lista los firmwares

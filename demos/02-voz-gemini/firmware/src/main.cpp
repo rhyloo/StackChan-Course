@@ -98,6 +98,7 @@ void setup() {
 }
 
 void loop() {
+    i2cLock();   // touch, PMIC, LEDs, NFC: the audio task also uses this bus
     M5.update();
     static uint32_t lastUi = 0, lastBatt = 0;
     static wl_status_t lastWifi = WL_IDLE_STATUS;
@@ -162,5 +163,6 @@ void loop() {
             servoHome();
         }
     }
+    i2cUnlock();
     delay(10);
 }

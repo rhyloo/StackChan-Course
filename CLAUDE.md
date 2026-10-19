@@ -15,6 +15,8 @@ Repositorio de un curso para programar Stack-chan, un M5Stack CoreS3 (ESP32-S3) 
 | `demos/01-vr-cardboard/` | Cámara del robot → portátil → móvil (app [rhyloo/StackChan-VR](https://github.com/rhyloo/StackChan-VR), repo aparte) y pose de la cabeza de vuelta. |
 | `demos/02-voz-gemini/` | La 01 más voz: micro del robot → pasarela → Gemini Live (llamadas a funciones) → altavoz del robot. |
 | `demos/03-espnow-balizas/` | Balizas ESP-NOW en ESP32 DevKit, receptor en el robot y trilateración en el portátil. |
+| `demos/04-nfc/` | Lector NFC: el ST25R3916 de la base lee etiquetas NFC-A y el robot enseña su contenido NDEF en pantalla. |
+| `demos/05-nfc-voz/` | Demo 02 + 04: Gemini escribe por voz un texto NDEF en la tarjeta (`escribir_tarjeta`, `leer_tarjeta`). Reutiliza `audio.cpp` y `voice.py` de la demo 02. |
 | `lib/StackChanHW/` | C++ compartido: servos, LEDs, INA226, cámara. Límites y calibración en `stackchan_limits.h`. |
 | `lib/StackChanLink/` | C++ compartido: enlace UDP robot ↔ pasarela y sus puntos de extensión para las demos. |
 | `lib/python/stackchan/` | Python compartido: protocolo y pasarela base. Cada demo aporta `hooks.py` y `processing.py`. |
@@ -25,6 +27,7 @@ El protocolo de todas las demos está en `demos/01-vr-cardboard/PROTOCOL.md`. Si
 ## Comandos
 
 ```bash
+demos/05-nfc-voz/run.sh [--sin-flashear]                # una demo en un paso: compila, flashea y arranca el portátil
 ./setup.sh --no-system                                # entorno .venv + toolchains + compila todo
 .venv/bin/pio run -d demos/02-voz-gemini/firmware     # compilar un firmware
 ./tools/flash.sh demos/02-voz-gemini/firmware --no-monitor   # flashear (sin args lista los firmwares)

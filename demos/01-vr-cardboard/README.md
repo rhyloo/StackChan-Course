@@ -18,16 +18,12 @@ Robot (servos) <-- posición ------ Portátil (pasarela) <-- control/sensores --
 
 ## Paso a paso
 
-1. **Flashea el robot** (USB-C), desde la raíz del repo:
+1. **Conecta el robot por USB-C y ejecuta, desde la raíz del repo:**
    ```bash
-   ./tools/flash.sh demos/01-vr-cardboard/firmware
+   demos/01-vr-cardboard/run.sh            # Windows: demos\01-vr-cardboard\run.bat
    ```
-   En la pantalla verás su IP, su nombre (`stackchan-XXXX`) y «Buscando el portátil».
-2. **Arranca la pasarela:**
-   ```bash
-   demos/01-vr-cardboard/run_relay.sh            # Windows: demos\01-vr-cardboard\run_relay.bat
-   ```
-   El robot pasa a «Portátil 192.168.x.x». Mientras nadie mira, el robot no envía vídeo, para ahorrar batería.
+   Compila el firmware, lo sube al robot y arranca la pasarela del portátil. En la pantalla del robot verás su IP, su nombre (`stackchan-XXXX`) y, enseguida, «Portátil 192.168.x.x». Mientras nadie mira, el robot no envía vídeo, para ahorrar batería.
+2. **La próxima vez**, si no has cambiado el firmware, basta con `run.sh --sin-flashear` (o `run_relay.sh`, que solo arranca la pasarela). Las opciones de la pasarela de abajo valen en los dos: `run.sh --show`.
 3. **Abre la app** en el móvil. El portátil aparece solo en la lista. Pulsa *Enter VR*, mete el móvil en las Cardboard y mira alrededor.
 
 Sin móvil, `run_relay.sh --show` muestra el vídeo en una ventana del portátil. Sin robot, `.venv/bin/python demos/01-vr-cardboard/fake_robot.py` simula uno.

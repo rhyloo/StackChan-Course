@@ -19,7 +19,24 @@ static constexpr uint8_t REG_PY32_LED_CFG   = 0x24;
 static constexpr uint8_t REG_PY32_LED_RAM   = 0x30;
 static constexpr uint8_t NUM_BASE_LEDS      = 12;
 
+static SemaphoreHandle_t s_i2cMutex = nullptr;
+static portMUX_TYPE s_i2cInitMux = portMUX_INITIALIZER_UNLOCKED;
+
+void i2cLock() {
+    if (!s_i2cMutex) {
+        SemaphoreHandle_t m = xSemaphoreCreateRecursiveMutex();
+        portENTER_CRITICAL(&s_i2cInitMux);
+        if (!s_i2cMutex) { s_i2cMutex = m; m = nullptr; }
+        portEXIT_CRITICAL(&s_i2cInitMux);
+        if (m) vSemaphoreDelete(m);
+    }
+    xSemaphoreTakeRecursive(s_i2cMutex, portMAX_DELAY);
+}
+
+void i2cUnlock() { xSemaphoreGiveRecursive(s_i2cMutex); }
+
 bool boardInit() {
+    I2CGuard lock;
     // 5 V to the base connector (AW9523 BUS_EN) and LCD backlight boost (BOOST_EN).
     M5.In_I2C.bitOn(AW9523_ADDR, 0x02, 0b00000010, 400000);
     M5.In_I2C.bitOn(AW9523_ADDR, 0x03, 0b10000000, 400000);
@@ -56,6 +73,7 @@ bool boardInit() {
 }
 
 void setBaseLeds(uint8_t r, uint8_t g, uint8_t b) {
+    I2CGuard lock;
     // 12 WS2812 at full white draw ~0.7 A. Together with Wi-Fi, the speaker and
     // battery charging that collapsed the supply and the PMIC cut the power, so
     // the brightness is capped here whatever the caller asks for.
@@ -71,6 +89,7 @@ void setBaseLeds(uint8_t r, uint8_t g, uint8_t b) {
 }
 
 bool readBatteryCurrent(float* busVolts, float* milliamps) {
+    I2CGuard lock;
     static constexpr uint8_t INA226_ADDR = 0x41;
     uint8_t b[2];
     if (!M5.In_I2C.readRegister(INA226_ADDR, 0x01, b, 2, 400000)) return false;   // shunt voltage, 2.5 uV/LSB

@@ -22,17 +22,13 @@ Tres placas ESP32 hacen de balizas y emiten un mensaje [ESP-NOW](https://docs.es
 
 ## Paso a paso
 
-1. **Flashea cada baliza** con su número. Conecta una placa cada vez; en Linux suele ser `/dev/ttyUSB0`:
+1. **Flashea las tres balizas.** El script te pide que conectes cada placa, una detrás de otra:
    ```bash
-   ./tools/flash.sh demos/03-espnow-balizas/baliza --env baliza1
-   ./tools/flash.sh demos/03-espnow-balizas/baliza --env baliza2
-   ./tools/flash.sh demos/03-espnow-balizas/baliza --env baliza3
+   demos/03-espnow-balizas/run.sh balizas      # Windows: demos\03-espnow-balizas\run.bat balizas
    ```
+   A mano sería `./tools/flash.sh demos/03-espnow-balizas/baliza --env baliza1` (y `baliza2`, `baliza3`).
    En el monitor verás `Baliza 1 lista: canal 1`. El LED azul da un destello por segundo.
-2. **Flashea el robot** como receptor:
-   ```bash
-   ./tools/flash.sh demos/03-espnow-balizas/receptor
-   ```
+2. **Conecta el robot y ejecuta** `demos/03-espnow-balizas/run.sh` (Windows: `run.bat`). Sube el receptor al robot y abre el mapa del paso 5; ciérralo con Ctrl+C para hacer antes los pasos 3 y 4.
 3. **Coloca las balizas** formando un triángulo grande, de 3 a 5 m de lado, en alto y sin objetos metálicos alrededor. Mide sus posiciones en metros y escríbelas en `portatil/balizas.json`.
 4. **Calibra.** Pon el robot a 1 m de una baliza, sin nada en medio, y ejecuta:
    ```bash

@@ -13,6 +13,10 @@
 //   push-to-talk ("listen manual"): the mic opens only with "mic on".
 
 void audioStart();               // registers the link handlers and starts the audio task
+bool audioCommand(const char* cmd);   // the audio text commands; for demos that chain their own handler
+// Beep from any task. Never call M5.Speaker.tone() outside the audio task: it
+// restarts the speaker's I2S driver under the open mic and the robot panics.
+void audioBeep(int hz, int ms);
 void audioTap();                 // screen tap: mute/unmute (hands-free) or talk/stop (push-to-talk)
 bool audioMicOn();
 bool audioSpeaking();
