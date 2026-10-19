@@ -9,6 +9,7 @@ Demos para aprender a programar [Stack-chan](docs/ROBOT.md), un robot de escrito
 | [03 · Balizas ESP-NOW](demos/03-espnow-balizas/) | Tres ESP32 hacen de balizas por ESP-NOW. El robot mide su señal, sabe cuál tiene más cerca y el portátil estima su posición en un mapa. | Robot, 3 placas ESP32 DevKit, portátil. |
 | [04 · Lector NFC](demos/04-nfc/) | Acercas una tarjeta o pegatina NFC a la base y el robot enseña en pantalla su número de serie, su tipo y lo que lleva escrito (texto, URL…). | Robot y etiquetas NFC (NTAG, MIFARE). Opcional: móvil con NFC para escribirlas. |
 | [05 · Tarjetas NFC por voz](demos/05-nfc-voz/) | Le dices lo que quieres guardar («escribe en la tarjeta: …»), acercas la tarjeta y el robot lo escribe. También te lee lo que pone. | Robot, portátil, tarjetas NTAG y una [clave de Gemini](https://aistudio.google.com/apikey). |
+| [06 · Infrarrojos](demos/06-infrarrojos/) | Apuntas un mando a distancia al robot y ves el código de cada botón; tocas la pantalla y el robot lo repite, como un mando universal. | Robot y un mando de infrarrojos (tele, aire…). |
 
 ```
 demos/                 una carpeta por demo: firmware, código del portátil y README

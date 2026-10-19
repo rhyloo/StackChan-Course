@@ -55,7 +55,7 @@ flash_robot() {
     ./tools/flash.sh "$1" "$port" --no-monitor || fail "No se pudo subir el firmware.
 - ¿Tienes abierto un monitor serie? Ciérralo: ocupa el puerto.
 - Si no, mantén pulsado RST unos 3 s (LED verde, modo descarga) y repite."
-    say "Firmware subido. El robot se reinicia y se conecta a la Wi-Fi (unos segundos)."
+    say "Firmware subido. El robot se reinicia (unos segundos)."
 }
 
 relay() {
@@ -89,6 +89,10 @@ case "$(basename "$DEMO")" in
     04-*)
         flash_robot "$DEMO/firmware"
         say "Acerca una tarjeta NFC a la base del robot. Aquí verás lo que lee (Ctrl+C para salir)."
+        exec "$PY" tools/serial_log.py "$DEMO/firmware" ${PORT:+"$PORT"} ;;
+    06-*)
+        flash_robot "$DEMO/firmware"
+        say "Apunta un mando al robot y pulsa botones. Aquí verás los códigos (Ctrl+C para salir)."
         exec "$PY" tools/serial_log.py "$DEMO/firmware" ${PORT:+"$PORT"} ;;
     *)
         fail "La demo $DEMO todavía no tiene run.sh" ;;

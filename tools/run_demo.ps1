@@ -42,7 +42,7 @@ function Flash-Robot($fw) {
         Fail ("No se pudo subir el firmware.`n- Tienes abierto un monitor serie? Cierralo: ocupa el puerto.`n" +
               "- Si no, manten pulsado RST unos 3 s (LED verde, modo descarga) y repite.")
     }
-    Say "Firmware subido. El robot se reinicia y se conecta a la Wi-Fi (unos segundos)."
+    Say "Firmware subido. El robot se reinicia (unos segundos)."
 }
 
 function Start-Relay {
@@ -77,6 +77,13 @@ switch -Wildcard ($Dir.Name) {
     "04-*" {
         Flash-Robot "$D\firmware"
         Say "Acerca una tarjeta NFC a la base del robot. Aqui veras lo que lee (Ctrl+C para salir)."
+        $a = @("tools\serial_log.py", "$D\firmware"); if ($Puerto) { $a += $Puerto }
+        & $Py @a
+        exit $LASTEXITCODE
+    }
+    "06-*" {
+        Flash-Robot "$D\firmware"
+        Say "Apunta un mando al robot y pulsa botones. Aqui veras los codigos (Ctrl+C para salir)."
         $a = @("tools\serial_log.py", "$D\firmware"); if ($Puerto) { $a += $Puerto }
         & $Py @a
         exit $LASTEXITCODE

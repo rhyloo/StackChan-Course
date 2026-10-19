@@ -6,7 +6,8 @@
     { "name": "03 · baliza (ESP32)", "path": "demos/03-espnow-balizas/baliza" },
     { "name": "03 · receptor (robot)", "path": "demos/03-espnow-balizas/receptor" },
     { "name": "04 · firmware NFC", "path": "demos/04-nfc/firmware" },
-    { "name": "05 · firmware NFC por voz", "path": "demos/05-nfc-voz/firmware" }
+    { "name": "05 · firmware NFC por voz", "path": "demos/05-nfc-voz/firmware" },
+    { "name": "06 · firmware infrarrojos", "path": "demos/06-infrarrojos/firmware" }
   ],
   "settings": {
     "files.exclude": { "**/.pio": true, "**/__pycache__": true },

@@ -17,6 +17,7 @@ Repositorio de un curso para programar Stack-chan, un M5Stack CoreS3 (ESP32-S3) 
 | `demos/03-espnow-balizas/` | Balizas ESP-NOW en ESP32 DevKit, receptor en el robot y trilateración en el portátil. |
 | `demos/04-nfc/` | Lector NFC: el ST25R3916 de la base lee etiquetas NFC-A y el robot enseña su contenido NDEF en pantalla. |
 | `demos/05-nfc-voz/` | Demo 02 + 04: Gemini escribe por voz un texto NDEF en la tarjeta (`escribir_tarjeta`, `leer_tarjeta`). Reutiliza `audio.cpp` y `voice.py` de la demo 02. |
+| `demos/06-infrarrojos/` | Infrarrojos (receptor G10, emisor G5, 38 kHz) con IRremoteESP8266: decodifica mandos y repite el último código al tocar la pantalla. |
 | `lib/StackChanHW/` | C++ compartido: servos, LEDs, INA226, cámara. Límites y calibración en `stackchan_limits.h`. |
 | `lib/StackChanLink/` | C++ compartido: enlace UDP robot ↔ pasarela y sus puntos de extensión para las demos. |
 | `lib/python/stackchan/` | Python compartido: protocolo y pasarela base. Cada demo aporta `hooks.py` y `processing.py`. |
