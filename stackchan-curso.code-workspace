@@ -7,7 +7,8 @@
     { "name": "03 · receptor (robot)", "path": "demos/03-espnow-balizas/receptor" },
     { "name": "04 · firmware NFC", "path": "demos/04-nfc/firmware" },
     { "name": "05 · firmware NFC por voz", "path": "demos/05-nfc-voz/firmware" },
-    { "name": "06 · firmware infrarrojos", "path": "demos/06-infrarrojos/firmware" }
+    { "name": "06 · firmware infrarrojos", "path": "demos/06-infrarrojos/firmware" },
+    { "name": "07 · firmware fotomatón", "path": "demos/07-fotomaton/firmware" }
   ],
   "settings": {
     "files.exclude": { "**/.pio": true, "**/__pycache__": true },

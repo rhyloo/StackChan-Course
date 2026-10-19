@@ -23,10 +23,13 @@ Hay dos enlaces:
 | `0x22` | VIDEO | robot → portátil | Igual que VIDEO_CHUNK del móvil: `frameId` u32, `chunkIndex` u16, `chunkCount` u16, `captureMs` u32 y hasta 1184 bytes de JPEG. |
 | `0x23` | TELEMETRY | robot → portátil | JSON a 2 Hz: `batt_v`, `batt_pct`, `current_ma` (INA226; negativo = cargando), `video` (0/1), `pan`, `tilt` (rad), `fps`, `jpeg_bytes`, `rssi`, `heap`, `psram`, `send_errors`, `quality`. |
 | `0x24` | POSE | portátil → robot | Binario: `seq` u32, `pan` f32, `tilt` f32 (radianes, IEEE-754 big-endian). |
-| `0x25` | CMD | portátil → robot | Texto ASCII: `home`, `torque_on`, `torque_off`, `quality <5-95>`, `tone <Hz> <ms>`, `leds <r> <g> <b>`, `text <mensaje>`, `brightness <0-255>`, `wifi_sleep <0/1>`. Demo 02: `mic on`, `mic off`. Demo 05: `nfc write <texto UTF-8>`, `nfc read`, `nfc cancel`. |
+| `0x25` | CMD | portátil → robot | Texto ASCII: `home`, `torque_on`, `torque_off`, `quality <5-95>`, `tone <Hz> <ms>`, `leds <r> <g> <b>`, `text <mensaje>`, `brightness <0-255>`, `wifi_sleep <0/1>`. Demo 02: `mic on`, `mic off`. Demo 05: `nfc write <texto UTF-8>`, `nfc read`, `nfc cancel`. Demo 07: `photo ack <id>`, `photo status <texto>`, `photo error <texto>`. |
 | `0x26` | AUDIO_IN | robot → portátil | Demo 02. `seq` u32 + PCM 16 bits little-endian, 16 kHz mono, 20 ms (640 bytes). |
 | `0x27` | AUDIO_OUT | portátil → robot | Demo 02. `seq` u32 + PCM 16 bits little-endian, 24 kHz mono, hasta 1180 bytes. El robot lo acumula 200 ms antes de reproducir. |
 | `0x28` | NFC | robot → portátil | Demo 05. JSON. Tarjeta leída: `{"event":"tag","ok","uid","type","ndef","text"}`. Resultado de `nfc write`: `{"event":"write","ok","uid","text","error"}`. |
+| `0x29` | PHOTO | robot → portátil | Demo 07. Igual que VIDEO: `photoId` u32, `chunkIndex` u16, `chunkCount` u16, `captureMs` u32 y hasta 1184 bytes de JPEG. El portátil confirma con `photo ack <id>`; si no, el robot la reenvía (3 intentos). |
+| `0x2A` | PHOTO_EVENT | robot → portátil | Demo 07. JSON: `{"event":"filter","photo","name"}`, `{"event":"bitmap_ok","job"}`, `{"event":"printed","ok","error"}`. |
+| `0x2B` | PRINT_BITMAP | portátil → robot | Demo 07. `job` u32, `chunkIndex` u16, `chunkCount` u16, `width` u16 (384), `height` u16 y hasta 1000 bytes de filas de 1 bit (48 bytes por fila, bit menos significativo primero, 1 = negro). El portátil reenvía hasta que llega `bitmap_ok`. |
 
 Reglas:
 

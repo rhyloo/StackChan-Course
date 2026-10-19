@@ -81,6 +81,10 @@ switch -Wildcard ($Dir.Name) {
         & $Py @a
         exit $LASTEXITCODE
     }
+    "07-*" {
+        if (-not $env:GEMINI_API_KEY) { Say "Sin GEMINI_API_KEY solo funcionan Original, Boceto y Pixel (los filtros con IA usan Gemini)." }
+        Flash-Robot "$D\firmware"; Start-Relay
+    }
     "06-*" {
         Flash-Robot "$D\firmware"
         Say "Apunta un mando al robot y pulsa botones. Aqui veras los codigos (Ctrl+C para salir)."
