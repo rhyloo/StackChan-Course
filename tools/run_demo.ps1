@@ -81,6 +81,13 @@ switch -Wildcard ($Dir.Name) {
         & $Py @a
         exit $LASTEXITCODE
     }
+    "08-*" {
+        Flash-Robot "$D\firmware"
+        Say "Mueve el servo desde la pantalla del robot (Ctrl+C para salir)."
+        $a = @("tools\serial_log.py", "$D\firmware"); if ($Puerto) { $a += $Puerto }
+        & $Py @a
+        exit $LASTEXITCODE
+    }
     "07-*" {
         if (-not $env:GEMINI_API_KEY) { Say "Sin GEMINI_API_KEY solo funcionan Original, Boceto y Pixel (los filtros con IA usan Gemini)." }
         Flash-Robot "$D\firmware"; Start-Relay

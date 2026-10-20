@@ -90,6 +90,10 @@ case "$(basename "$DEMO")" in
         flash_robot "$DEMO/firmware"
         say "Acerca una tarjeta NFC a la base del robot. Aquí verás lo que lee (Ctrl+C para salir)."
         exec "$PY" tools/serial_log.py "$DEMO/firmware" ${PORT:+"$PORT"} ;;
+    08-*)
+        flash_robot "$DEMO/firmware"
+        say "Mueve el servo desde la pantalla del robot. Aquí verás lo que dice el robot (Ctrl+C para salir)."
+        exec "$PY" tools/serial_log.py "$DEMO/firmware" ${PORT:+"$PORT"} ;;
     07-*)
         [ -n "${GEMINI_API_KEY:-}" ] || say "Sin GEMINI_API_KEY solo funcionan Original, Boceto y Píxel (los filtros con IA usan Gemini)."
         flash_robot "$DEMO/firmware"

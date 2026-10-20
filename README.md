@@ -11,6 +11,7 @@ Demos para aprender a programar [Stack-chan](docs/ROBOT.md), un robot de escrito
 | [05 · Tarjetas NFC por voz](demos/05-nfc-voz/) | Le dices lo que quieres guardar («escribe en la tarjeta: …»), acercas la tarjeta y el robot lo escribe. También te lee lo que pone. | Robot, portátil, tarjetas NTAG y una [clave de Gemini](https://aistudio.google.com/apikey). |
 | [06 · Infrarrojos](demos/06-infrarrojos/) | Apuntas un mando a distancia al robot y ves el código de cada botón; tocas la pantalla y el robot lo repite, como un mando universal. | Robot y un mando de infrarrojos (tele, aire…). |
 | [07 · Fotomatón](demos/07-fotomaton/) | Tocas la pantalla, cuenta atrás de 3 o 5 s y foto. Eliges un filtro (Ghibli, Gaming y Cómic con IA; Boceto, Píxel u Original) y la imprime en una impresora térmica MX10 por Bluetooth. | Robot, portátil, impresora MX10 y, para los filtros con IA, una [clave de Gemini](https://aistudio.google.com/apikey). |
+| [08 · Servo SG90](demos/08-servo-sg90/) | Conectas un micro-servo SG90 al PORT.B y lo mueves desde la pantalla: barra, 0°/90°/180° o barrido. | Robot, un servo SG90 y un cable Grove. |
 
 ```
 demos/                 una carpeta por demo: firmware, código del portátil y README
