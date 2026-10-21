@@ -3,6 +3,7 @@
     { "name": "Stack-chan course", "path": "." },
     { "name": "01 · VR firmware", "path": "demos/01-vr-cardboard/firmware" },
     { "name": "02 · voice firmware", "path": "demos/02-gemini-voice/firmware" },
+    { "name": "02.1 · head and moods by voice firmware", "path": "demos/02.1-voice-moves/firmware" },
     { "name": "03 · beacon (ESP32)", "path": "demos/03-espnow-beacons/beacon" },
     { "name": "03 · receiver (robot)", "path": "demos/03-espnow-beacons/receiver" },
     { "name": "04 · NFC firmware", "path": "demos/04-nfc/firmware" },

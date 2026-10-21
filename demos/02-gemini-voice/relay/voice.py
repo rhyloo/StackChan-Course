@@ -35,13 +35,13 @@ OUT_CHUNK = 1180            # PCM bytes per datagram (fits in 1200 with header a
 END_OF_TURN_S = 0.3         # push to talk: no audio from the robot for 300 ms = end of turn
 FRAME_EVERY_S = 3.0         # hands-free: one image every 3 s (more images = slower answers)
 SILENCE_MS = 500            # hands-free: silence that ends your turn
-VOICE_HOLD_S = 10.0         # after moving the head by voice, phone control is ignored for this long
 
 INSTRUCTIONS = """You are Stack-chan, a small, friendly robot with a camera in its face.
 The person talking to you wears a VR viewer and sees what your camera sees.
 Always reply in the same language the person speaks to you.
 Use very short sentences (one or two), because you are heard through a small speaker.
-When they ask you to change the image, move your head, change the LEDs or save a photo, use the functions.
+When they ask you to change the image, change the LEDs or save a photo, use the functions.
+You can't move your head here: the person moves it with the VR viewer.
 If they ask what you see, describe the last camera image you received."""
 
 _voice = None   # the active instance, for hooks.py
@@ -117,20 +117,6 @@ class Voice:
                         "filter": S(type="STRING", enum=list(processing.FILTERS))})),
                 "run": self.fn_filter,
             },
-            "move_head": {
-                "decl": types.FunctionDeclaration(
-                    name="move_head",
-                    description="Turns the robot's head. pan: degrees to the left (+) or right (-), from -180 to 180 "
-                                "(the head turns all the way round; 180 = looking behind). "
-                                "tilt: degrees up from looking straight ahead, from -7 to 73.",
-                    parameters=S(type="OBJECT", required=["pan", "tilt"], properties={
-                        "pan": S(type="NUMBER"), "tilt": S(type="NUMBER")})),
-                "run": self.fn_move,
-            },
-            "center_head": {
-                "decl": types.FunctionDeclaration(name="center_head", description="Makes the head look straight ahead."),
-                "run": self.fn_center,
-            },
             "set_leds": {
                 "decl": types.FunctionDeclaration(
                     name="set_leds", description="Changes the color of the 12 LEDs in the base (RGB from 0 to 255).",
@@ -169,18 +155,6 @@ class Voice:
         processing.FILTER = f
         self.phone.hud(f"Filter: {f}", ms=1500)
         return {"ok": True, "filter": f}
-
-    def fn_move(self, args):
-        import math
-        self.robot.pause_phone_control(VOICE_HOLD_S)
-        self.robot.pose(math.radians(float(args.get("pan", 0))), math.radians(float(args.get("tilt", 0))))
-        return {"ok": True, "note": f"for {VOICE_HOLD_S:.0f} s; then, if the VR viewer controls the head, it follows the person again"}
-
-    def fn_center(self, args):
-        self.robot.pause_phone_control(VOICE_HOLD_S)
-        self.robot.pose(0.0, 0.0)
-        self.robot.cmd("home")
-        return {"ok": True}
 
     def fn_volume(self, args):
         level = max(0, min(100, int(args.get("level", 50))))

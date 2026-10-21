@@ -17,8 +17,8 @@ pygame (SDL2) reads it the same way on Linux, Windows and macOS. It uses SDL's
     Options          mutes or unmutes the mic
     PS               everything to rest: stops the dance, head to the center, LEDs off
 
-The head is only sent while you touch the stick: that way it doesn't undo the
-moves Gemini makes by voice ("look to the left").
+The head is only sent while you touch the stick, so the phone (Head mode) can
+take over again when you let go.
 """
 import colorsys
 import math
@@ -287,7 +287,7 @@ A person moves your head with a PS4 gamepad and talks to you. With the gamepad t
 dance, fire a toy laser ("pew!") and honk the horn.
 Always reply in the same language the person speaks to you.
 Use very short sentences (one or two), because you are heard through a small speaker.
-When they ask you to move your head, change the LEDs, the volume or tell your status, use the functions.
+Your head is moved with the gamepad, not by voice. When they ask you to change the LEDs, the volume or tell your status, use the functions.
 If they ask what you see, describe the last camera image you received."""
 
 

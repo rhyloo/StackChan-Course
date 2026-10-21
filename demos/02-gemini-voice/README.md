@@ -1,6 +1,6 @@
 # Demo 02 · Voice with Gemini
 
-Demo 01 plus voice. You talk to the robot and [Gemini Live](https://ai.google.dev/gemini-api/docs/live) understands you, answers through the robot's speaker and runs functions: change the image filter, move the head, set the LEDs, save photos… When you start talking it sees what the camera sees, so you can ask "what do you see?". You'll learn how a live voice model calls your own Python functions, and how audio travels over the same UDP link as the video.
+Demo 01 plus voice. You talk to the robot and [Gemini Live](https://ai.google.dev/gemini-api/docs/live) understands you, answers through the robot's speaker and runs functions: change the image filter, set the LEDs, save photos… The head follows the VR viewer, as in demo 01; to move it by voice, see [demo 02.1](../02.1-voice-moves/). When you start talking it sees what the camera sees, so you can ask "what do you see?". You'll learn how a live voice model calls your own Python functions, and how audio travels over the same UDP link as the video.
 
 ```
 robot mic --AUDIO_IN 16 kHz--> relay --> Gemini Live --> voice --AUDIO_OUT 24 kHz--> robot speaker
@@ -52,7 +52,6 @@ Try:
 - "Use the cartoon filter"
 - "Remove the filter"
 - "What do you see?"
-- "Look to the left"
 - "Set the LEDs to blue"
 - "Take a photo"
 
@@ -95,4 +94,3 @@ All the options of demo 01, plus:
 | It answers noises or background conversations | Mute the mic (tap, L1 or Enter) or use `--push-to-talk` |
 | The mouth is listening (green circle) but Gemini doesn't answer | Look at the terminal: if `You: …` doesn't show up, the audio isn't arriving. Check that the robot has **this** demo's firmware. |
 | You can't hear the answer | The volume is in `audio.cpp` (`setVolume`). The answer only plays while the microphone is closed. |
-| The head goes back a few seconds after "look to the left" | Expected if the VR viewer controls the head (*Head* mode): the voice is in charge for 10 s (`VOICE_HOLD_S` in `voice.py`) and then the head follows you again. To control it by voice only, put the app in *View only* with □. |

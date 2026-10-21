@@ -24,7 +24,9 @@ say()  { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 fail() { printf '\n\033[1;31m%s\033[0m\n' "$*" >&2; exit 1; }
 
 [ $# -ge 1 ] || fail "Usage: tools/run_demo.sh <demo> [--flash-only | --debug | --no-flash] [--usb PORT] [options]"
-DEMO="$(ls -d demos/"${1#demos/}"* 2>/dev/null | head -1 || true)"
+# "02" must be demo 02, not 02.1: try the exact number first.
+DEMO="$(ls -d demos/"${1#demos/}"-* 2>/dev/null | head -1 || true)"
+[ -n "$DEMO" ] || DEMO="$(ls -d demos/"${1#demos/}"* 2>/dev/null | head -1 || true)"
 DEMO="${DEMO%/}"
 [ -d "$DEMO" ] || fail "Demo '$1' does not exist. Available: $(ls demos | tr '\n' ' ')"
 shift
@@ -33,7 +35,7 @@ shift
 show_help() {
     local laptop=""
     case "$(basename "$DEMO")" in
-        01-*|02-*|05-*|07-*|10-*) laptop="$DEMO/relay/main.py" ;;
+        01-*|02-*|02.1-*|05-*|07-*|10-*) laptop="$DEMO/relay/main.py" ;;
         03-*) laptop="$DEMO/laptop/position.py" ;;
         11-*) laptop="$DEMO/laptop/drive.py" ;;
     esac
@@ -139,7 +141,7 @@ case "$(basename "$DEMO")" in
     01-*)
         flash_robot "$DEMO/firmware"
         relay ;;
-    02-*|05-*)
+    02-*|02.1-*|05-*)
         need_gemini_key
         flash_robot "$DEMO/firmware"
         relay ;;

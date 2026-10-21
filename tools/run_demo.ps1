@@ -21,7 +21,10 @@ $Fw = ""   # firmware flashed on the robot (for serial_log.py to decode crashes)
 function Say($m) { Write-Host "`n==> $m" -ForegroundColor Cyan }
 function Fail($m) { Write-Host "`n$m" -ForegroundColor Red; exit 1 }
 
-$Dir = Get-ChildItem demos -Directory | Where-Object { $_.Name -like "$($Demo -replace '^demos[\\/]', '')*" } | Select-Object -First 1
+# "02" must be demo 02, not 02.1: try the exact number first.
+$Wanted = $Demo -replace '^demos[\\/]', ''
+$Dir = Get-ChildItem demos -Directory | Where-Object { $_.Name -like "$Wanted-*" } | Select-Object -First 1
+if (-not $Dir) { $Dir = Get-ChildItem demos -Directory | Where-Object { $_.Name -like "$Wanted*" } | Select-Object -First 1 }
 if (-not $Dir) { Fail "Demo '$Demo' does not exist. Available: $((Get-ChildItem demos -Directory).Name -join ' ')" }
 $D = "demos\$($Dir.Name)"
 # -Help / --help: the modes, then the options of the program the demo runs on the laptop.
@@ -36,7 +39,7 @@ if ($Help -or $Rest -contains "--help") {
     Write-Host "  -Help        show this help"
     $laptop = $null
     switch -Wildcard ($Dir.Name) {
-        "01-*" { $laptop = "$D\relay\main.py" } "02-*" { $laptop = "$D\relay\main.py" } "05-*" { $laptop = "$D\relay\main.py" }
+        "01-*" { $laptop = "$D\relay\main.py" } "02-*" { $laptop = "$D\relay\main.py" } "02.1-*" { $laptop = "$D\relay\main.py" } "05-*" { $laptop = "$D\relay\main.py" }
         "07-*" { $laptop = "$D\relay\main.py" } "10-*" { $laptop = "$D\relay\main.py" }
         "03-*" { $laptop = "$D\laptop\position.py"; Write-Host "`nAlso:`n  $D\run.bat beacons   flash the three ESP32 beacons, one after another" }
         "11-*" { $laptop = "$D\laptop\drive.py"
@@ -114,6 +117,7 @@ function Monitor($m) {
 switch -Wildcard ($Dir.Name) {
     "01-*" { Flash-Robot "$D\firmware"; Start-Relay }
     "02-*" { Need-GeminiKey; Flash-Robot "$D\firmware"; Start-Relay }
+    "02.1-*" { Need-GeminiKey; Flash-Robot "$D\firmware"; Start-Relay }
     "05-*" { Need-GeminiKey; Flash-Robot "$D\firmware"; Start-Relay }
     "03-*" {
         if ($Rest.Count -gt 0 -and $Rest[0] -eq "beacons") {

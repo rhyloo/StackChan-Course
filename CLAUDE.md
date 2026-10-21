@@ -12,7 +12,8 @@ Repository of a course for programming Stack-chan, an M5Stack CoreS3 (ESP32-S3) 
 | Path | Contents |
 |---|---|
 | `demos/01-vr-cardboard/` | Robot camera → laptop → phone (app [rhyloo/StackChan-VR](https://github.com/rhyloo/StackChan-VR), separate repo) and head pose back. |
-| `demos/02-gemini-voice/` | Demo 01 plus voice: robot mic → relay → Gemini Live (function calls) → robot speaker. |
+| `demos/02-gemini-voice/` | Demo 01 plus voice: robot mic → relay → Gemini Live (function calls) → robot speaker. The head follows the VR viewer, not the voice. |
+| `demos/02.1-voice-moves/` | Voice without VR: Gemini moves the head (`look`, `turn_head`, 0 = straight ahead, 360° pan), shows moods (`set_mood`: face command `face <mood>` + LEDs + posture) and dances. Reuses `audio.cpp` and `voice.py` from demo 02. |
 | `demos/03-espnow-beacons/` | ESP-NOW beacons on ESP32 DevKit boards, receiver on the robot and trilateration on the laptop. |
 | `demos/04-nfc/` | NFC reader: the base's ST25R3916 reads NFC-A tags and the robot shows their NDEF content on screen. |
 | `demos/05-nfc-voice/` | Demo 02 + 04: Gemini writes an NDEF text on the card by voice (`write_card`, `read_card`). Reuses `audio.cpp` and `voice.py` from demo 02. |

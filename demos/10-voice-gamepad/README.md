@@ -65,7 +65,7 @@ Move the stick and talk to the robot.
 | **PS** | Everything to rest: stops the dance, head to the center and LEDs off |
 
 - **When the gamepad rumbles:** when it connects, when the head reaches its limit, with every shot and on every bar of the dance.
-- **The stick and the voice don't get in each other's way:** the head is only sent while you move the stick. If you ask by voice "look to the left", the gamepad doesn't undo it.
+- **The head is moved with the gamepad, not by voice.** To move it by voice, see [demo 02.1](../02.1-voice-moves/).
 - **To stop the dance:** stick, ✕, D-pad or PS.
 
 ## How it works

@@ -5,9 +5,9 @@
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 if [ $# -ge 1 ]; then exec "$ROOT/tools/run_demo.sh" "$@"; fi
 echo "Stack-chan course demos:"
-for d in "$ROOT"/demos/*/; do
-    d="$(basename "$d")"
-    printf '  %-20s %s\n' "$d" "$(sed -n 's/^# Demo [0-9]* in one step: //p' "$ROOT/demos/$d/run.sh" 2>/dev/null)"
+for d in $(cd "$ROOT/demos" && LC_ALL=C ls -d */); do   # C order: 02 before 02.1
+    d="${d%/}"
+    printf '  %-20s %s\n' "$d" "$(sed -n 's/^# Demo [0-9.]* in one step: //p' "$ROOT/demos/$d/run.sh" 2>/dev/null)"
 done
 read -r -p "Which one? (number): " n
 [ -n "$n" ] || exit 0
