@@ -72,7 +72,7 @@ Move the stick and talk to the robot.
 
 | File | What for |
 |---|---|
-| `relay/gamepad.py` | Reads the gamepad 25 times per second. The stick moves a pan/tilt target (rad/s depending on the tilt), clipped to the limits the robot sends, and it is sent with `robot.pose()`. Buttons detect the moment they are pressed (edge), not whether they are held. |
+| `relay/gamepad.py` | Reads the gamepad 25 times per second. The stick moves a pan/tilt target (rad/s depending on the tilt), clipped to the limits the robot sends (the pan keeps turning past the back on a robot that turns all the way round), and it is sent with `robot.pose()`. Buttons detect the moment they are pressed (edge), not whether they are held. |
 | `relay/sounds.py` | The "pew", the horn and the song, synthesized with numpy. |
 | `relay/main.py` | The demo 02 relay with `gamepad.setup()`: the voice (`voice.py`) is the one from there, with other instructions for Gemini. |
 | `tools/pair_gamepad.sh` | Looks for a "Wireless Controller" with `bluetoothctl`, pairs it, marks it as trusted and connects it. |

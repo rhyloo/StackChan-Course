@@ -120,8 +120,9 @@ class Voice:
             "move_head": {
                 "decl": types.FunctionDeclaration(
                     name="move_head",
-                    description="Turns the robot's head. pan: degrees to the left (+) or right (-), from -130 to 160. "
-                                "tilt: degrees up, from -2 to 27.",
+                    description="Turns the robot's head. pan: degrees to the left (+) or right (-), from -180 to 180 "
+                                "(the head turns all the way round; 180 = looking behind). "
+                                "tilt: degrees up from looking straight ahead, from -7 to 73.",
                     parameters=S(type="OBJECT", required=["pan", "tilt"], properties={
                         "pan": S(type="NUMBER"), "tilt": S(type="NUMBER")})),
                 "run": self.fn_move,

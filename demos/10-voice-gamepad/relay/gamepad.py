@@ -267,7 +267,11 @@ class Gamepad:
         self.pan -= x * PAN_SPEED * k * PERIOD     # stick right -> look right (negative pan)
         self.tilt -= y * TILT_SPEED * k * PERIOD   # stick up (negative y) -> look up
         lim = self.robot.limits
-        pan = min(max(self.pan, lim["pan"][0]), lim["pan"][1])
+        if lim["pan"][1] - lim["pan"][0] >= 2 * math.pi - 0.01:
+            # The head turns all the way round: keep turning, past the back too.
+            pan = self.pan = math.atan2(math.sin(self.pan), math.cos(self.pan))
+        else:
+            pan = min(max(self.pan, lim["pan"][0]), lim["pan"][1])
         tilt = min(max(self.tilt, lim["tilt"][0]), lim["tilt"][1])
         at_limit = (pan, tilt) != (self.pan, self.tilt)
         if at_limit and not self.at_limit:
