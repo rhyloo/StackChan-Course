@@ -2,7 +2,7 @@
 //
 // Wiring (PORT.B):
 //   SG90 black -> black / - (GND)    SG90 red -> red / + (5 V)    SG90 blue (signal) -> PWM
-// The signal can go to pin G9 (yellow wire) or G8 (white): the pulse comes out
+// The signal can go to pin G9 (white wire) or G8 (yellow): the pulse comes out
 // of both at once, so it works either way.
 //
 // A hobby servo is driven by one pulse every 20 ms (50 Hz): the pulse width
@@ -14,7 +14,7 @@
 #include <M5Unified.h>
 #include "board.h"
 
-static const int         SERVO_PINS[] = { 9, 8 }; // PORT.B: G9 (yellow) and G8 (white), same pulse on both
+static const int         SERVO_PINS[] = { 9, 8 }; // PORT.B: G9 (white) and G8 (yellow), same pulse on both
 static constexpr int      PWM_CHANNEL  = 0;
 static constexpr int      PWM_HZ       = 50;      // one pulse every 20 ms
 static constexpr int      PWM_BITS     = 14;      // 20 ms / 16384 = 1.2 µs per step

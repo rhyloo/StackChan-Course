@@ -80,7 +80,7 @@ Shared by the CoreS3 and the base:
 | microSD | Same SPI, MISO G35, CS G4 |
 | Audio (I2S) | MCLK G0, BCK G34, WS G33, DOUT G13, DIN G14 |
 | Grove Port A (I2C) | SDA G2, SCL G1 |
-| Grove Port B | G9, G8 |
+| Grove Port B | G9 (white wire), G8 (yellow), checked on the robot 2026-10-22 |
 | Grove Port C (UART) | TX G17, RX G18 |
 
 Grove connector: black GND, red 5 V, yellow and white signals. The full ESP32-S3 pin map is in [ESP32-S3_Pinout_Reference.pdf](hardware/pinouts/ESP32-S3_Pinout_Reference.pdf).

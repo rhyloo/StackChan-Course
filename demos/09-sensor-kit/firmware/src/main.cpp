@@ -1,6 +1,6 @@
 // Demo 09 - The modules of the 37-sensor kit (KY-0xx) on PORT.B.
 //
-// PORT.B: black GND, red 5 V, yellow G9, white G8. The modules run on 5 V,
+// PORT.B: black GND, red 5 V, white G9, yellow G8. The modules run on 5 V,
 // but the ESP32 pins only take 3.3 V: every signal that GOES INTO the robot
 // passes through a divider (10 kOhm in series and 20 kOhm to GND), which turns 5 V into 3.3 V.
 // See the README: the single-wire modules (DHT11, DS18B20) are wired differently.
@@ -13,31 +13,42 @@
 //   Encoder      KY-040: CLK on G9, DT on G8
 //   Joystick     KY-023: X on G9, Y on G8
 //   Outputs      LED, laser, relay, buzzers on G9 and G8 (no divider: here the robot drives)
+//   RGB LED      KY-009 / KY-016: R on G9, G on G8, B on G17 (PORT.C), colours mixed with PWM
+//   RF 433 MHz   receiver (XY-MK-5V) on G9, transmitter (FS1000A) on G8: remote codes with rc-switch
 #include <M5Unified.h>
 #include <OneWire.h>
+#include <RCSwitch.h>
 #include "board.h"
 
-static constexpr int      PIN_A       = 9;       // PORT.B, yellow
-static constexpr int      PIN_B       = 8;       // PORT.B, white
+static constexpr int      PIN_A       = 9;       // PORT.B, white
+static constexpr int      PIN_B       = 8;       // PORT.B, yellow
+static constexpr int      PIN_C       = 17;      // PORT.C, only for the blue of the RGB LED
 static constexpr float    DIVIDER     = 1.5f;    // 10k + 20k: the sensor's volts = the pin's volts x 1.5
 static constexpr uint8_t  BRIGHTNESS  = 179;     // 70 %
 static constexpr uint8_t  LED_ON      = 40;      // well under LED_MAX_LEVEL
 static constexpr int      W = 320, H = 240, TOP = 26, FOOT = 22;
 static constexpr int      BODY_H = H - TOP - FOOT;
 static constexpr int      TONE_CH = 0;
+static constexpr int      RGB_CH  = 2;       // LEDC channels 2, 3, 4: timers apart from the tone's
 
-enum Mode { M_MENU, M_DIGITAL, M_ANALOG, M_DHT, M_DS18B20, M_ENCODER, M_JOYSTICK, M_OUTPUTS, M_MODE_COUNT };
-struct ModeInfo { const char* name; const char* wiring; uint16_t color; };
+// Menu order: the modes already tested on the robot come first.
+// Analog and Encoder go last: they still don't work well on the robot.
+enum Mode { M_MENU, M_DIGITAL, M_DHT, M_OUTPUTS, M_RGB, M_DS18B20, M_JOYSTICK, M_RF, M_ANALOG, M_ENCODER, M_MODE_COUNT };
+struct ModeInfo { const char* name; const char* menu; const char* wiring; uint16_t color; };
 static const ModeInfo MODES[M_MODE_COUNT] = {
-    { "Kit sensors - PORT.B: pick a type", "", TFT_DARKGREY },
-    { "Digital", "S -> divider -> G9 (yellow)", TFT_GREEN },
-    { "Analog", "S or A0 -> divider -> G9 (yellow)", TFT_CYAN },
-    { "DHT11", "S to G9 and 20k from G9 to GND", TFT_ORANGE },
-    { "DS18B20 (KY-001)", "S to G9 and 10k from G9 to GND", TFT_ORANGE },
-    { "Encoder", "CLK -> div. -> G9, DT -> div. -> G8", TFT_MAGENTA },
-    { "Joystick", "VRx -> div. -> G9, VRy -> div. -> G8", TFT_MAGENTA },
-    { "Outputs", "S to G9 (and G8), no divider", TFT_YELLOW },
+    { "Kit sensors - PORT.B: pick a type", "", "", TFT_DARKGREY },
+    { "Digital", "Digital", "S -> divider -> white (G9)", TFT_GREEN },
+    { "Temp & humidity (DHT11)", "Temp & humidity", "S to white (G9), 20k to GND", TFT_ORANGE },
+    { "Outputs", "Outputs", "S to white (G9) / yellow (G8)", TFT_YELLOW },
+    { "RGB LED", "RGB LED", "R white(G9) G yellow(G8) B G17 - GND", TFT_PINK },
+    { "Digital temp (DS18B20)", "Digital temp", "S to white (G9), 10k to GND", TFT_ORANGE },
+    { "Joystick", "Joystick", "VRx -div-> white(G9), VRy -> yellow(G8)", TFT_MAGENTA },
+    { "RF 433 MHz", "RF 433 MHz", "RX -div-> white(G9), TX -> yellow(G8)", TFT_SKYBLUE },
+    { "Analog", "Analog", "S or A0 -> divider -> white (G9)", TFT_CYAN },
+    { "Encoder", "Encoder", "CLK white(G9), DT yellow(G8), 20k GND", TFT_MAGENTA },
 };
+static constexpr int MENU_ROWS  = M_MODE_COUNT / 2;              // two columns, the menu itself not counted
+static constexpr int MENU_ROW_H = (H - TOP - 4) / MENU_ROWS;
 
 static auto& lcd = M5.Display;
 static M5Canvas s_body(&M5.Display);
@@ -56,6 +67,18 @@ static volatile int32_t s_encCount = 0;
 static volatile uint8_t s_encState = 0;
 static bool s_out[2] = { false, false };
 static bool s_melody = false;
+static uint8_t s_rgb[3] = { 0, 0, 0 };   // RGB LED: PWM duty of R, G and B
+// RF 433 MHz. Two instances: send() switches off its own instance's receiver while it transmits,
+// so a separate one keeps listening and the robot hears its own transmitter.
+static RCSwitch s_rfRx, s_rfTx;
+static bool s_rfOn = false;
+static unsigned long s_rfCode = 0;
+static unsigned s_rfBits = 24, s_rfProto = 1, s_rfPulse = 350;
+static uint32_t s_rfCount = 0, s_rfMs = 0;
+static unsigned long s_rfRemote = 0;      // last code from a remote (not our own), to replay it
+static unsigned long s_rfNext = 1001, s_rfSent = 0;   // our sends: a new number each time
+static uint32_t s_rfSends = 0, s_rfHeard = 0;
+static bool s_rfSentHeard = false;
 static uint32_t s_melodyMs = 0;
 static int s_melodyNote = 0;
 
@@ -73,11 +96,15 @@ static bool s_irqAttached = false;
 
 static void releasePins() {
     if (s_irqAttached) { detachInterrupt(PIN_A); detachInterrupt(PIN_B); s_irqAttached = false; }
+    if (s_rfOn) { s_rfRx.disableReceive(); s_rfTx.disableTransmit(); s_rfOn = false; }
     ledcDetachPin(PIN_A);
+    ledcDetachPin(PIN_B);
+    ledcDetachPin(PIN_C);
     delete s_ow;
     s_ow = nullptr;
     pinMode(PIN_A, INPUT);
     pinMode(PIN_B, INPUT);
+    pinMode(PIN_C, INPUT);
     s_melody = false;
     setBaseLeds(0, 0, 0);
 }
@@ -164,11 +191,11 @@ static void drawMenu() {
     drawFrame();
     for (int i = 1; i < M_MODE_COUNT; i++) {
         const int col = (i - 1) % 2, row = (i - 1) / 2;
-        const int x = col * 160, y = TOP + 4 + row * 52;
-        lcd.fillRoundRect(x + 4, y, 152, 48, 8, MODES[i].color);
+        const int x = col * 160, y = TOP + 4 + row * MENU_ROW_H;
+        lcd.fillRoundRect(x + 4, y, 152, MENU_ROW_H - 4, 8, MODES[i].color);
         lcd.setTextColor(TFT_BLACK, MODES[i].color);
         lcd.setTextDatum(middle_center);
-        lcd.drawString(i == M_DS18B20 ? "DS18B20" : MODES[i].name, x + 80, y + 24);
+        lcd.drawString(MODES[i].menu, x + 80, y + (MENU_ROW_H - 4) / 2);
     }
     lcd.setTextDatum(top_left);
 }
@@ -199,8 +226,11 @@ static void enterMode(Mode m) {
     s_sensorMsg = "";
     s_encCount = 0;
     s_out[0] = s_out[1] = false;
+    memset(s_rgb, 0, sizeof(s_rgb));
     switch (m) {
-        case M_DIGITAL: pinMode(PIN_A, INPUT); break;
+        // Internal pull-down (~45 kOhm): with nothing connected the pin reads a steady 0
+        // instead of picking up mains hum. A module on 5 V through the divider still gives ~2.9 V.
+        case M_DIGITAL: pinMode(PIN_A, INPUT_PULLDOWN); break;
         case M_ANALOG:
         case M_JOYSTICK:
             analogSetPinAttenuation(PIN_A, ADC_11db);   // 0..3.1 V
@@ -208,8 +238,8 @@ static void enterMode(Mode m) {
             break;
         case M_DS18B20: s_ow = new OneWire(PIN_A); s_dsStartedMs = 0; break;
         case M_ENCODER:
-            pinMode(PIN_A, INPUT);
-            pinMode(PIN_B, INPUT);
+            pinMode(PIN_A, INPUT_PULLDOWN);
+            pinMode(PIN_B, INPUT_PULLDOWN);
             attachInterrupt(PIN_A, onEncoder, CHANGE);
             attachInterrupt(PIN_B, onEncoder, CHANGE);
             s_irqAttached = true;
@@ -218,6 +248,23 @@ static void enterMode(Mode m) {
             pinMode(PIN_A, OUTPUT); digitalWrite(PIN_A, LOW);
             pinMode(PIN_B, OUTPUT); digitalWrite(PIN_B, LOW);
             break;
+        case M_RF:
+            pinMode(PIN_A, INPUT);
+            s_rfRx.enableReceive(digitalPinToInterrupt(PIN_A));
+            s_rfTx.enableTransmit(PIN_B);
+            s_rfOn = true;
+            s_rfCode = s_rfRemote = s_rfSent = 0; s_rfBits = 24; s_rfProto = 1; s_rfPulse = 350;
+            s_rfCount = s_rfSends = s_rfHeard = 0;
+            break;
+        case M_RGB: {
+            const int pins[3] = { PIN_A, PIN_B, PIN_C };
+            for (int i = 0; i < 3; i++) {
+                ledcSetup(RGB_CH + i, 5000, 8);   // 5 kHz, duty 0..255
+                ledcAttachPin(pins[i], RGB_CH + i);
+                ledcWrite(RGB_CH + i, 0);
+            }
+            break;
+        }
         default: break;
     }
     if (m == M_MENU) drawMenu();
@@ -256,11 +303,12 @@ static void updateAnalog() {
     s_graphPos = (s_graphPos + 1) % W;
     ledsLevel(mv / 3100.0f);
     static uint32_t lastLog = 0;
-    if (millis() - lastLog > 500) { lastLog = millis(); Serial.printf("G9 %d mV (sensor %.2f V)\n", mv, sensorV(mv)); }
+    const int mvB = pinMv(PIN_B);   // G8 too, to tell which Grove wire is which
+    if (millis() - lastLog > 500) { lastLog = millis(); Serial.printf("G9 %d mV (sensor %.2f V)  G8 %d mV\n", mv, sensorV(mv), mvB); }
 
     s_body.fillSprite(TFT_BLACK);
     bodyBig(String(sensorV(mv), 2) + " V", 26, TFT_CYAN);
-    bodyText(("On the pin: " + String(mv) + " mV   (module scale 0-5 V)").c_str(), 58, TFT_LIGHTGREY);
+    bodyText(("G9: " + String(mv) + " mV   G8: " + String(mvB) + " mV").c_str(), 58, TFT_LIGHTGREY);
     const int gy = 72, gh = BODY_H - gy - 4;
     s_body.drawRect(0, gy, W, gh, TFT_DARKGREY);
     for (int x = 1; x < W; x++) {   // oldest on the left
@@ -382,7 +430,7 @@ static void updateOutputs() {
         }
     }
     s_body.fillSprite(TFT_BLACK);
-    const char* labels[2] = { "G9 (yellow)", "G8 (white)" };
+    const char* labels[2] = { "white (G9)", "yellow (G8)" };
     for (int i = 0; i < 2; i++) {
         const uint16_t c = s_out[i] ? TFT_YELLOW : TFT_DARKGREY;
         s_body.fillRoundRect(10 + i * 155, 8, 145, 80, 10, c);
@@ -395,7 +443,7 @@ static void updateOutputs() {
     const uint16_t mc = s_melody ? TFT_RED : TFT_BLUE;
     s_body.fillRoundRect(10, 100, 300, 56, 10, mc);
     s_body.setTextColor(TFT_WHITE);
-    s_body.drawString(s_melody ? "Playing..." : "Tune on G9 (passive buzzer)", W / 2, 128);
+    s_body.drawString(s_melody ? "Playing..." : "Tune on white (G9), passive buzzer", W / 2, 128);
     s_body.setTextColor(TFT_LIGHTGREY);
     s_body.drawString("LED, laser, relay, active buzzer: on/off", W / 2, BODY_H - 12);
 }
@@ -419,6 +467,116 @@ static void touchOutputs(int x, int y) {
     }
 }
 
+// RGB LED: three sliders (R, G, B) set the PWM duty of G9, G8 and G17.
+static constexpr int SLIDER_X = 44, SLIDER_W = 196, SLIDER_H = 40, SLIDER_GAP = 50;
+
+static void updateRgb() {
+    static const uint16_t colors[3] = { TFT_RED, TFT_GREEN, TFT_BLUE };
+    static const char* labels[3] = { "R", "G", "B" };
+    s_body.fillSprite(TFT_BLACK);
+    s_body.setFont(&fonts::efontJA_16);
+    for (int i = 0; i < 3; i++) {
+        const int y = 8 + i * SLIDER_GAP;
+        s_body.setTextDatum(middle_center);
+        s_body.setTextColor(colors[i]);
+        s_body.drawString(labels[i], 20, y + SLIDER_H / 2);
+        s_body.drawRoundRect(SLIDER_X, y, SLIDER_W, SLIDER_H, 6, TFT_DARKGREY);
+        s_body.fillRoundRect(SLIDER_X, y, s_rgb[i] * SLIDER_W / 255, SLIDER_H, 6, colors[i]);
+        s_body.setTextColor(TFT_WHITE);
+        s_body.drawString(String(s_rgb[i] * 100 / 255) + " %", SLIDER_X + SLIDER_W / 2, y + SLIDER_H / 2);
+    }
+    const uint16_t mix = lcd.color565(s_rgb[0], s_rgb[1], s_rgb[2]);
+    s_body.fillRoundRect(250, 8, 62, 2 * SLIDER_GAP + SLIDER_H, 10, mix);
+    s_body.drawRoundRect(250, 8, 62, 2 * SLIDER_GAP + SLIDER_H, 10, TFT_DARKGREY);
+    s_body.setTextDatum(middle_center);
+    s_body.setTextColor(TFT_LIGHTGREY);
+    s_body.drawString("Drag the bars. Resistors: R 150, G/B 100 ohm", W / 2, BODY_H - 12);
+}
+
+static void touchRgb(int x, int y) {
+    const int by = y - TOP - 8;
+    const int i = by / SLIDER_GAP;
+    if (by < 0 || i > 2 || by % SLIDER_GAP >= SLIDER_H) return;
+    const uint8_t v = constrain((x - SLIDER_X) * 255 / SLIDER_W, 0, 255);
+    if (v == s_rgb[i]) return;
+    s_rgb[i] = v;
+    ledcWrite(RGB_CH + i, v);
+    setBaseLeds(s_rgb[0] * LED_ON / 255, s_rgb[1] * LED_ON / 255, s_rgb[2] * LED_ON / 255);
+    static uint32_t lastLog = 0;
+    if (millis() - lastLog > 200) { lastLog = millis(); Serial.printf("RGB %u %u %u\n", s_rgb[0], s_rgb[1], s_rgb[2]); }
+}
+
+// RF 433 MHz: rc-switch decodes the common remote and socket protocols (PT2262, EV1527...).
+// The receiver's DATA goes through the divider to G9; the transmitter's DATA, direct on G8.
+static void updateRf() {
+    if (s_rfRx.available()) {
+        const unsigned long code = s_rfRx.getReceivedValue();
+        if (code) {
+            s_rfCode = code;
+            s_rfCount++;
+            s_rfMs = millis();
+            ledsLevel(1);
+            const bool own = code == s_rfSent;
+            if (own && !s_rfSentHeard) { s_rfSentHeard = true; s_rfHeard++; }   // the 8 repeats count once
+            if (!own) {   // a remote: keep it to replay it
+                s_rfBits = s_rfRx.getReceivedBitlength();
+                s_rfProto = s_rfRx.getReceivedProtocol();
+                s_rfPulse = s_rfRx.getReceivedDelay();
+                s_rfRemote = code;
+            }
+            Serial.printf("RF code %lu (0x%lX) %u bits, protocol %u, pulse %u us%s\n", code, code,
+                          s_rfRx.getReceivedBitlength(), s_rfRx.getReceivedProtocol(), s_rfRx.getReceivedDelay(),
+                          own ? " (own transmitter)" : "");
+        }
+        s_rfRx.resetAvailable();
+    }
+    if (s_rfCount && millis() - s_rfMs > 300) ledsLevel(0);
+
+    s_body.fillSprite(TFT_BLACK);
+    if (s_rfCount) {
+        bodyBig(String(s_rfCode), 26, TFT_SKYBLUE);
+        bodyText(s_rfCode == s_rfSent ? "from the robot's own transmitter" : "from a remote", 58);
+        bodyText(("Received " + String((millis() - s_rfMs) / 1000.0f, 1) + " s ago").c_str(), 80, TFT_LIGHTGREY);
+    } else {
+        bodyText("Press a 433 MHz remote button", 30);
+        bodyText("or send a number with the robot", 52);
+        bodyText("Nothing received yet", 80, TFT_LIGHTGREY);
+    }
+    s_body.setTextDatum(middle_center);
+    s_body.fillRoundRect(10, 98, 145, 62, 10, TFT_BLUE);
+    s_body.setTextColor(TFT_WHITE);
+    s_body.drawString("Send", 82, 116);
+    s_body.drawString(String(s_rfNext), 82, 140);
+    const uint16_t rc = s_rfRemote ? TFT_DARKGREEN : TFT_DARKGREY;
+    s_body.fillRoundRect(165, 98, 145, 62, 10, rc);
+    s_body.drawString("Replay remote", 237, 116);
+    s_body.drawString(s_rfRemote ? String(s_rfRemote) : String("none yet"), 237, 140);
+    s_body.setTextColor(TFT_LIGHTGREY);
+    const String heard = "Own sends heard: " + String(s_rfHeard) + " of " + String(s_rfSends);
+    s_body.drawString(heard.c_str(), W / 2, BODY_H - 12);
+}
+
+static void rfSend(unsigned long code, unsigned bits, unsigned proto, unsigned pulse) {
+    s_rfTx.setProtocol(proto);
+    s_rfTx.setPulseLength(pulse);
+    s_rfTx.setRepeatTransmit(8);
+    s_rfTx.send(code, bits);   // blocks ~0.3 s
+    Serial.printf("RF sent %lu, %u bits, protocol %u\n", code, bits, proto);
+}
+
+static void touchRf(int x, int y) {
+    const int by = y - TOP;
+    if (by < 98 || by >= 160) return;
+    if (x < W / 2) {   // a new number each time, to tell the sends apart
+        s_rfSent = s_rfNext++;
+        s_rfSentHeard = false;
+        s_rfSends++;
+        rfSend(s_rfSent, 24, 1, 350);
+    } else if (s_rfRemote) {
+        rfSend(s_rfRemote, s_rfBits, s_rfProto, s_rfPulse);
+    }
+}
+
 // ---------------------------------------------------------------- main
 void setup() {
     auto cfg = M5.config();
@@ -426,12 +584,14 @@ void setup() {
     M5.begin(cfg);
     lcd.setBrightness(BRIGHTNESS);
     lcd.setFont(&fonts::efontJA_16);   // 16 px font for the screen texts
-    if (!boardInit()) Serial.println("Base K151 not answering (PY32)");   // also 5 V to the Grove ports
+    // 5 V to the Grove ports; servos unpowered: the head does not move here and their
+    // boost converter only adds noise to the 5 V the modules run on.
+    if (!boardInit(false)) Serial.println("Base K151 not answering (PY32)");
     setBaseLeds(0, 0, 0);
     s_body.setPsram(true);
     s_body.setColorDepth(16);
     s_body.createSprite(W, BODY_H);
-    Serial.println("\n[Demo 09 sensor kit] PORT.B: G9 (yellow), G8 (white)");
+    Serial.println("\n[Demo 09 sensor kit] PORT.B: white (G9), yellow (G8)");
     enterMode(M_MENU);
 }
 
@@ -440,17 +600,23 @@ void loop() {
     if (M5.Touch.getCount() && M5.Touch.getDetail().wasPressed()) {
         const int x = M5.Touch.getDetail().x, y = M5.Touch.getDetail().y;
         if (s_mode == M_MENU) {
-            if (y >= TOP + 4 && y < TOP + 4 + 4 * 52) {
-                const int i = 1 + ((y - TOP - 4) / 52) * 2 + (x >= 160);
+            if (y >= TOP + 4 && y < TOP + 4 + MENU_ROWS * MENU_ROW_H) {
+                const int i = 1 + ((y - TOP - 4) / MENU_ROW_H) * 2 + (x >= 160);
                 if (i < M_MODE_COUNT) enterMode((Mode)i);
             }
         } else if (y < TOP && x > W - 80) {
             enterMode(M_MENU);
         } else if (s_mode == M_OUTPUTS) {
             touchOutputs(x, y);
+        } else if (s_mode == M_RF) {
+            touchRf(x, y);
         } else if (s_mode == M_ENCODER) {
             s_encCount = 0;   // tap: back to zero
         }
+    }
+    if (s_mode == M_RGB && M5.Touch.getCount() && M5.Touch.getDetail().isPressed()) {
+        const auto& t = M5.Touch.getDetail();   // sliders follow the finger
+        if (t.y >= TOP) touchRgb(t.x, t.y);
     }
 
     static uint32_t lastDraw = 0;
@@ -464,6 +630,8 @@ void loop() {
             case M_ENCODER: updateEncoder(); break;
             case M_JOYSTICK: updateJoystick(); break;
             case M_OUTPUTS: updateOutputs(); break;
+            case M_RGB: updateRgb(); break;
+            case M_RF: updateRf(); break;
             default: break;
         }
         s_body.pushSprite(0, TOP);

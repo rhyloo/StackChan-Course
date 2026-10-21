@@ -8,11 +8,13 @@ In the menu you pick the module type:
 |---|---|---|
 | **Digital** | tilt, vibration, shock, Hall, reed, magnetic switch, touch, flame (D0), obstacle, line tracking, button, sound (D0), mercury | 0 or 1, how many times it has changed and how long ago |
 | **Analog** | photoresistor, KY-028 (A0), linear Hall, microphones (A0), heartbeat | the voltage and a live graph |
-| **DHT11** | temperature and humidity (KY-015) | °C and % |
-| **DS18B20** | KY-001 temperature | °C with two decimals |
+| **Temp & humidity** | DHT11 (KY-015) | °C and % |
+| **Digital temp** | DS18B20 (KY-001) | °C with two decimals |
 | **Encoder** | rotary encoder (KY-040) | a dial that turns with the knob |
 | **Joystick** | XY joystick (KY-023) | a dot that moves |
 | **Outputs** | one- and two-colour LEDs, laser, relay, active and passive buzzer | two switches and a tune |
+| **RGB LED** | RGB LED, SMD (KY-009) or 5 mm (KY-016) | three sliders that mix the colour with PWM |
+| **RF 433 MHz** | receiver (XY-MK-5V) and transmitter (FS1000A) | the code received; one button sends a new number each time (and counts how many the robot heard), another replays the last remote |
 
 The base LEDs follow the reading: they light up on a digital sensor's 1, or grow with an analog sensor's level.
 
@@ -42,16 +44,21 @@ The **outputs** don't need it: there it is the robot that sends 3.3 V to the mod
 
 ### Wiring
 
-PORT.B, Grove cable: **black GND**, **red 5 V**, **yellow G9**, **white G8**. In every case the module's `−` (or `GND`) goes to black and `+` (or `VCC`) to red.
+PORT.B, Grove cable: **black (GND)**, **red (5 V)**, **white (G9)**, **yellow (G8)**. In every case the module's `−` (or `GND`) goes to black and `+` (or `VCC`) to red.
 
 | Mode | Module pin `S` / signal | How |
 |---|---|---|
-| Digital, Analog | `S`, `D0` or `A0` → **G9** | with a divider (10 kΩ in series, 20 kΩ to GND) |
-| DHT11 | `S` → **G9**, direct | plus **20 kΩ from G9 to GND**, without the series one (see below) |
-| DS18B20 (KY-001) | `S` → **G9**, direct | plus **10 kΩ from G9 to GND** (8.2 kΩ is better if you have one) |
-| Encoder | `CLK` → **G9**, `DT` → **G8** | one divider on each; `SW` not connected |
-| Joystick | `VRx` → **G9**, `VRy` → **G8** | one divider on each; `SW` not connected |
-| Outputs | `S` → **G9** (and another module on **G8**) | direct, no divider |
+| Digital, Analog | `S`, `D0` or `A0` → **white (G9)** | with a divider (10 kΩ in series, 20 kΩ to GND) |
+| Digital, module with its own pull-up | `S` or `D0` → **white (G9)**, direct | plus **20 kΩ from G9 to GND**, without the series one: Hall (KY-003), `D0` of the red 4-pin boards (LM393) |
+| DHT11 | `S` → **white (G9)**, direct | plus **20 kΩ from G9 to GND**, without the series one (see below) |
+| DS18B20 (KY-001) | `S` → **white (G9)**, direct | plus **10 kΩ from G9 to GND** (8.2 kΩ is better if you have one) |
+| Encoder | `CLK` → **white (G9)**, `DT` → **yellow (G8)**, direct | plus **20 kΩ to GND on each** (the KY-040 has 10 kΩ pull-ups); `SW` not connected |
+| Joystick | `VRx` → **white (G9)**, `VRy` → **yellow (G8)** | one divider on each; `SW` not connected |
+| Outputs | `S` → **white (G9)** (and another module on **yellow (G8)**) | direct, no divider |
+| RF 433 MHz | receiver `DATA` → **white (G9)**, transmitter `DATA` → **yellow (G8)** | receiver: **4.7 kΩ in series and 20 kΩ to GND** (its output only reaches about 3.5 V: with 10 kΩ the 1 stays below what the ESP32 reads as 1); the transmitter direct. Both `VCC` to 5 V; a 17 cm wire as antenna |
+| RGB LED | `R` → **white (G9)**, `G` → **yellow (G8)**, `B` → **G17** (PORT.C), `−` → GND | direct, with a resistor in series on each colour: 150 Ω on R, 100 Ω on G and B |
+
+**Why some modules go without the series resistor.** In Digital and Encoder the firmware turns on the ESP32's internal pull-down (~45 kΩ), so a pin with nothing connected reads a steady 0. A module with its own 10 kΩ pull-up to 5 V, a 10 kΩ series resistor and that pull-down leave the 1 at about 2 V, which the ESP32 reads as 0. With the module's pull-up and 20 kΩ to GND, the line sits at about 2.9 V. If you can't see a pull-up on the module (a `103` resistor next to `S`), use the divider.
 
 **Why the DHT11 and the DS18B20 are different.** Both the robot and the sensor talk over their single wire. A series resistor would stop the robot from pulling the line down to 0 V. These modules already have a **pull-up** resistor to 5 V inside; you only add one to GND to make the divider with it. With the DHT11's 10 kΩ pull-up, 20 kΩ to GND leaves the line at 3.3 V. The KY-001 usually has 4.7 kΩ: with 10 kΩ the line sits at 3.4 V and with 8.2 kΩ, at 3.2 V. If your module has another value (the small resistor marked `103` is 10 kΩ; `472`, 4.7 kΩ), adjust the one to GND so the line stays close to 3.3 V.
 
@@ -91,6 +98,8 @@ The readings also show up in the serial monitor.
 | `updateDs18b20()` | 1-Wire bus with the OneWire library: "convert", wait 750 ms and read the temperature with its CRC. |
 | `onEncoder()` | An interrupt on both encoder pins and a quadrature table that discards contact bounce. |
 | `updateOutputs()` | `digitalWrite` to switch on and off; `ledcWriteTone` for the passive buzzer's notes. |
+| `updateRf()` / `touchRf()` | The rc-switch library: an interrupt on G9 measures the pulses and recognises the protocol; `send()` repeats the code 8 times on G8. |
+| `touchRgb()` | Three LEDC channels at 5 kHz: the duty (0-255) of each colour sets how bright it looks. |
 
 ## Troubleshooting
 
@@ -100,6 +109,7 @@ The readings also show up in the serial monitor.
 | Analog almost flat | On modules with two outputs (flame, sound, KY-028), use `A0`, not `D0`. |
 | DHT11 / DS18B20 "No answer" or "Sensor not answering" | Check `S`, `+` and `−`, and that the resistor goes from G9 to **GND**, not in series. |
 | The encoder counts in jumps | That's normal: the contacts "bounce". The firmware filters most bounces; turn it more slowly. |
+| RGB LED: green or blue very dim | Normal: they need about 3 V and the pin gives 3.3 V. Use a smaller resistor (not below 47 Ω). The KY-009 has no resistors of its own: never wire it without them. |
 | The relay clicks but doesn't switch | Some 5 V relays need more than 3.3 V on the `S` input. Try another module or a transistor. |
 
 ## Ideas to extend

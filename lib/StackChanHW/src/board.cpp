@@ -39,7 +39,7 @@ static uint8_t s_pmicOn = 0, s_pmicOff = 0;
 uint8_t pmicPowerOnStatus() { return s_pmicOn; }
 uint8_t pmicPowerOffStatus() { return s_pmicOff; }
 
-bool boardInit() {
+bool boardInit(bool servoPower) {
     I2CGuard lock;
     // Why the PMIC last switched on and off (AXP2101 REG 20h / 21h), read before
     // anything else: the ESP32 only sees "power_on" when the whole robot lost power.
@@ -67,9 +67,15 @@ bool boardInit() {
     }
     // PY32 pin 0 = VM_EN (5 V to the servos).
     M5.In_I2C.bitOn(PY32_ADDR, REG_PY32_GPIO_M_L, 0x01, 100000);
-    M5.In_I2C.bitOff(PY32_ADDR, REG_PY32_GPIO_PD_L, 0x01, 100000);
-    M5.In_I2C.bitOn(PY32_ADDR, REG_PY32_GPIO_PU_L, 0x01, 100000);
-    M5.In_I2C.bitOn(PY32_ADDR, REG_PY32_GPIO_O_L, 0x01, 100000);
+    if (servoPower) {
+        M5.In_I2C.bitOff(PY32_ADDR, REG_PY32_GPIO_PD_L, 0x01, 100000);
+        M5.In_I2C.bitOn(PY32_ADDR, REG_PY32_GPIO_PU_L, 0x01, 100000);
+        M5.In_I2C.bitOn(PY32_ADDR, REG_PY32_GPIO_O_L, 0x01, 100000);
+    } else {
+        M5.In_I2C.bitOff(PY32_ADDR, REG_PY32_GPIO_PU_L, 0x01, 100000);
+        M5.In_I2C.bitOn(PY32_ADDR, REG_PY32_GPIO_PD_L, 0x01, 100000);
+        M5.In_I2C.bitOff(PY32_ADDR, REG_PY32_GPIO_O_L, 0x01, 100000);
+    }
     // PY32 pin 13 = WS2812 data for the 12 base LEDs.
     static constexpr uint8_t LED_PIN_MASK = 0x20;
     M5.In_I2C.bitOn(PY32_ADDR, REG_PY32_GPIO_M_H, LED_PIN_MASK, 100000);

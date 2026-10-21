@@ -6,7 +6,9 @@
 // these sequences were verified on the real robot.
 #include "stackchan_limits.h"
 
-bool boardInit();                      // power rails + base coprocessor; true if the base answered
+// Power rails + base coprocessor; true if the base answered. servoPower = false leaves
+// VM_EN off: the servos' boost converter stays off (demos that don't move the head).
+bool boardInit(bool servoPower = true);
 // AXP2101 REG 20h (power-on source) and 21h (last power-off source), read in boardInit().
 // Bits are decoded in lib/python/stackchan/relay.py and docs/ROBOT.md.
 uint8_t pmicPowerOnStatus();

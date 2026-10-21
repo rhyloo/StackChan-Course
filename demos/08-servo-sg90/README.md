@@ -15,14 +15,14 @@ The robot has three Grove ports (HY2.0-4P). The servo goes on **PORT.B**: its pi
 | Port | Black | Red | Yellow | White |
 |---|---|---|---|---|
 | PORT.A | GND | 5 V | G2 | G1 |
-| **PORT.B** | **GND (−)** | **5 V (+)** | **G9** | **G8** |
+| **PORT.B** | **GND (−)** | **5 V (+)** | **G8** | **G9** |
 | PORT.C | GND | 5 V | G17 | G18 |
 
 | SG90 wire | What it is | PORT.B |
 |---|---|---|
 | **Black** (or brown) | Ground, GND | Black (−) |
 | **Red** | Power, 5 V | Red (+) |
-| **Blue** (or orange or yellow) | Signal | Yellow (G9) or white (G8) |
+| **Blue** (or orange or yellow) | Signal | White (G9) or yellow (G8) |
 
 The firmware puts the same pulse on G9 and G8, so the signal works on either one. Tested with a real SG90.
 
