@@ -1,6 +1,8 @@
-# Entorno del curso Stack-chan VR (lo instala setup.sh en .venv/)
-platformio>=6.1,<7      # compilar y flashear el firmware del robot
-pyserial>=3.5           # monitor serie
+# Stack-chan VR course environment (setup.sh installs it in .venv/)
+platformio>=6.1,<7      # build and flash the robot's firmware
+pyserial>=3.5           # serial monitor
 numpy>=1.26
-opencv-python>=4.9,<5   # (la 5 quitó los clasificadores Haar) procesado de vídeo en el portátil (processing.py de cada demo) y ventanas
-google-genai>=1.30      # demo 02: Gemini Live (voz, visión y llamadas a funciones)
+opencv-python>=4.9,<5   # (5 removed the Haar classifiers) video processing on the laptop (each demo's processing.py) and windows
+google-genai>=1.30      # demo 02: Gemini Live (voice, vision and function calls)
+pygame>=2.5,<3          # demo 10: PS4 gamepad connected to the laptop over Bluetooth
+bleak>=1.0              # demo 11: the laptop talks to the tank over Bluetooth LE (HM-10)

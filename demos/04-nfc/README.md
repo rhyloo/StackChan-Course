@@ -1,56 +1,81 @@
-# Demo 04 · Lector NFC
+# Demo 04 · NFC reader
 
-La base del Stack-chan lleva un chip NFC **ST25R3916** de ST ([datasheet](../../docs/hardware/datasheets/STMicroelectronics_ST25R3916_NFC_Datasheet.pdf)), en el bus I2C interno (dirección `0x50`). Es un lector **y escritor** completo: lee y escribe etiquetas, y hasta puede hacerse pasar por una (emulación). En esta demo el robot solo **lee**. Acercas una tarjeta o una pegatina NFC, el robot pita, pone los LEDs de la base en verde y enseña en pantalla lo que lleva dentro.
+Stack-chan's base has an ST **ST25R3916** NFC chip ([datasheet](../../docs/hardware/datasheets/STMicroelectronics_ST25R3916_NFC_Datasheet.pdf)) on the internal I2C bus (address `0x50`). It is a full reader **and writer**: it reads and writes tags, and can even pretend to be one (emulation). In this demo the robot only **reads**. Hold a card or an NFC sticker near it: the robot beeps, turns the base LEDs green and shows on screen what the tag holds. You'll learn how NFC tags work and how their data is stored.
 
 ```
- etiqueta NFC  )))  13,56 MHz  (((  ST25R3916 (base) ──I2C──> CoreS3 ──> pantalla
-                                                                       └─> monitor serie
+ NFC tag  )))  13.56 MHz  (((  ST25R3916 (base) ──I2C──> CoreS3 ──> screen
+                                                                  └─> serial monitor
 ```
 
-**NFC** (*Near Field Communication*) es radio a 13,56 MHz que solo alcanza unos centímetros. El lector crea un campo magnético que alimenta la etiqueta, así que la etiqueta no necesita pila. Las etiquetas guardan sus datos en **NDEF**, un formato estándar con uno o varios registros: un texto, una URL, un contacto…
+**NFC** (*Near Field Communication*) is radio at 13.56 MHz that only reaches a few centimetres. The reader creates a magnetic field that powers the tag, so the tag needs no battery. Tags store their data as **NDEF**, a standard format with one or more records: a text, a URL, a contact…
 
-## Necesitas
+## What you need
 
-- **El robot.** No hace falta Wi-Fi ni portátil, salvo para flashearlo.
-- **Etiquetas NFC-A** (ISO 14443A): pegatinas o tarjetas NTAG213/215/216, MIFARE Ultralight, Classic o DESFire. Muchas tarjetas de transporte, de hotel o de acceso son de estos tipos.
-- Opcional: un móvil con NFC y la app **NFC Tools** para escribir en las etiquetas tus propios textos o URL.
+- **The robot.** No Wi-Fi or laptop needed, except to flash it.
+- **NFC-A tags** (ISO 14443A): NTAG213/215/216 stickers or cards, MIFARE Ultralight, Classic or DESFire. Many transport, hotel and access cards are one of these types.
+- Optional: a phone with NFC and the **NFC Tools** app, to write your own texts or URLs on the tags.
 
-## Paso a paso
+## Run it
 
-1. **Conecta el robot por USB-C y ejecuta:**
-   ```bash
-   demos/04-nfc/run.sh          # Windows: demos\04-nfc\run.bat
-   ```
-   Compila el firmware, lo sube al robot y deja abierto el monitor serie, que también se guarda en `logs/`.
-2. En la pantalla sale *«NFC: acerca una etiqueta»*.
-3. **Acerca la etiqueta a la base**, a uno o dos centímetros, y déjala quieta un momento. La pantalla enseña:
-   - el **UID** (el número de serie de la etiqueta);
-   - el **tipo** y la **memoria** que tiene;
-   - los **registros NDEF** uno a uno: su tipo (`T` = texto, `U` = URL…) y lo que llevan.
-4. Si la etiqueta no lleva NDEF, la pantalla lo dice y el **monitor serie** muestra el volcado de su memoria, página a página.
-5. Para leer la misma etiqueta otra vez, apártala y vuelve a acercarla. Un toque en la pantalla vuelve a la pantalla de espera.
+Connect the robot over USB-C and run, from the repo root:
 
-## Qué puede salir
+```bash
+demos/04-nfc/run.sh               # flash the robot and start the demo
+demos/04-nfc/run.sh --flash-only  # only build and flash; the firmware stays on the robot
+demos/04-nfc/run.sh --debug       # like the default, and save logs/robot-*.log
+demos/04-nfc/run.sh --no-flash    # start the demo with what the robot already has
+demos/04-nfc/run.sh --help        # every option of this demo
+```
 
-| En pantalla | Qué significa |
+On Windows use `run.bat` with `-FlashOnly`, `-DebugLogs` and `-NoFlash`.
+
+This demo has no relay: the default builds the firmware, flashes it and leaves the serial monitor open, which is also saved to `logs/`. `--debug` does the same.
+
+## Try it
+
+1. The screen shows *"NFC: bring a tag close"*.
+2. **Hold the tag near the base**, 1 or 2 cm away, and keep it still for a moment. The screen shows:
+   - the **UID** (the tag's serial number);
+   - its **type** and how much **memory** it has;
+   - the **NDEF records** one by one: their type (`T` = text, `U` = URL…) and what they hold.
+3. If the tag has no NDEF, the screen says so and the **serial monitor** shows a dump of its memory, page by page.
+4. To read the same tag again, move it away and bring it back. A tap on the screen goes back to the waiting screen.
+
+### What you may see
+
+| On screen | What it means |
 |---|---|
-| Registros `T` / `U` | Etiqueta con NDEF: texto o URL, ya decodificados. |
-| *Sin datos NDEF* | Etiqueta vacía o con un formato propio (tarjetas de acceso). Mira el monitor serie. |
-| *MIFARE Classic: sus sectores van con clave* | Sin la clave del sector no se pueden leer sus datos. El volcado lo intenta con la clave por defecto. |
-| *No se pudo identificar* | La etiqueta se movió o estaba en el borde del campo. Acércala más y déjala quieta. |
-| *No encuentro el lector* | El ST25R3916 no responde por I2C. Comprueba que el CoreS3 está bien encajado en la base. |
+| `T` / `U` records | A tag with NDEF: text or URL, already decoded. |
+| *No NDEF data* | An empty tag or one with a custom format (access cards). Look at the serial monitor. |
+| *MIFARE Classic: its sectors need a key* | Without the sector key its data can't be read. The dump tries with the default key. |
+| *Could not identify it* | The tag moved or was at the edge of the field. Bring it closer and keep it still. |
+| *NFC: reader not found* | The ST25R3916 doesn't answer over I2C. Check that the CoreS3 is properly seated on the base. |
 
-## Cómo funciona
+## How it works
 
-`firmware/src/main.cpp` usa la librería oficial [M5Unit-NFC](https://github.com/m5stack/M5Unit-NFC) (`m5stack/M5Unit-NFC@0.1.2`). Lleva el driver del ST25R3916 y las capas NFC-A y NDEF.
+`firmware/src/main.cpp` uses the official [M5Unit-NFC](https://github.com/m5stack/M5Unit-NFC) library (`m5stack/M5Unit-NFC@0.1.2`). It includes the ST25R3916 driver and the NFC-A and NDEF layers.
 
-- `boardInit()` (de `lib/StackChanHW`) alimenta la base y `UnitNFC` se registra en `M5.In_I2C`, el bus interno.
-- Cada 200 ms, `NFCLayerA::detect()` busca etiquetas.
-- `identify()` averigua el modelo exacto y `ndefRead()` lee el mensaje NDEF.
-- `deactivate()` deja la etiqueta en reposo, así no se vuelve a leer mientras sigue encima.
+- `boardInit()` (from `lib/StackChanHW`) powers the base, and `UnitNFC` registers on `M5.In_I2C`, the internal bus.
+- Every 200 ms, `NFCLayerA::detect()` looks for tags.
+- `identify()` finds out the exact model and `ndefRead()` reads the NDEF message.
+- `deactivate()` puts the tag to sleep, so it isn't read again while it is still on the reader.
 
-## Para seguir
+| File | What for |
+|---|---|
+| `firmware/src/main.cpp` | Tag detection, NDEF reading and what the screen shows |
+| `firmware/platformio.ini` | Board and libraries (M5Unit-NFC) |
+| `../../lib/StackChanHW/` | Base power and LEDs |
 
-- **Escribir:** `NFCLayerA::ndefWrite()` graba un mensaje NDEF. El ejemplo `examples/UnitUnified/NFCA/NDEF` de la librería escribe texto y una URL. Ojo: pasar una MIFARE Ultralight a NDEF no tiene vuelta atrás, y en las DESFire borra lo que hubiera.
-- **Otros estándares:** el chip también lee NFC-B, NFC-F (FeliCa) y NFC-V (ISO 15693), con las clases `NFCLayerB`, `NFCLayerF` y `NFCLayerV`.
-- **Que el robot reaccione:** según el texto de la etiqueta, mover la cabeza, cambiar los LEDs (sin pasar de `LED_MAX_LEVEL`) o decir algo.
+## Troubleshooting
+
+| Symptom | What to do |
+|---|---|
+| The screen says *"NFC: reader not found"* | The ST25R3916 doesn't answer over I2C. Check that the CoreS3 is properly seated on the base. |
+| *Could not identify it* or *Read error: the tag moved* | Bring the tag closer (1-2 cm) and keep it still. |
+| Nothing happens when you hold a tag | It may not be NFC-A. This demo only reads ISO 14443A tags (NTAG, MIFARE). |
+
+## Ideas to extend
+
+- **Write:** `NFCLayerA::ndefWrite()` writes an NDEF message. The library example `examples/UnitUnified/NFCA/NDEF` writes a text and a URL. Careful: turning a MIFARE Ultralight into NDEF can't be undone, and on DESFire cards it erases what was there.
+- **Other standards:** the chip also reads NFC-B, NFC-F (FeliCa) and NFC-V (ISO 15693), with the `NFCLayerB`, `NFCLayerF` and `NFCLayerV` classes.
+- **Make the robot react:** depending on the tag's text, move the head, change the LEDs (without going over `LED_MAX_LEVEL`) or say something.

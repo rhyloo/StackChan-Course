@@ -8,7 +8,7 @@
 #include <esp_heap_caps.h>
 #include <esp_system.h>
 
-// --- Protocol (keep in sync with relay/protocol.py) ---
+// --- Protocol (keep in sync with lib/python/stackchan/protocol.py) ---
 static constexpr uint8_t MAGIC0 = 0x53, MAGIC1 = 0x56, VERSION = 1;
 static constexpr uint8_t T_HELLO = 0x20;      // robot -> laptop
 static constexpr uint8_t T_ACK = 0x21;        // laptop -> robot
@@ -227,9 +227,10 @@ static void helloTask(void*) {
             lastHello = now;
             int n = snprintf(json, sizeof(json),
                 "{\"name\":\"stackchan-%s\",\"fw\":\"" FW_VERSION "\",\"ip\":\"%s\",\"uptime_s\":%u,\"reset\":\"%s\","
-                "\"limits\":{\"pan\":[%.4f,%.4f],\"tilt\":[%.4f,%.4f]}}",
+                "\"pmic_on\":%u,\"pmic_off\":%u,\"limits\":{\"pan\":[%.4f,%.4f],\"tilt\":[%.4f,%.4f]}}",
                 robotId(), WiFi.localIP().toString().c_str(), (unsigned)(millis() / 1000), resetReason(),
-                PAN_MIN, PAN_MAX, TILT_MIN, TILT_MAX);
+                (unsigned)pmicPowerOnStatus(), (unsigned)pmicPowerOffStatus(),
+                -(float)M_PI, (float)M_PI, TILT_MIN, TILT_MAX);   // pan: any angle (motor mode crosses the blind zone)
             putHeader(pkt, T_HELLO);
             memcpy(pkt + 4, json, n);
             sockaddr_in to = {};

@@ -1,82 +1,107 @@
-# Demo 01 · VR con Cardboard
+# Demo 01 · Cardboard VR
 
-Ves por los ojos de Stack-chan con unas Google Cardboard y mueves su cabeza girando la tuya o con un mando de PS4.
+See through Stack-chan's eyes with a Google Cardboard VR viewer and move its head by turning yours, or with a PS4 gamepad. You'll learn how video and head pose travel between the robot, the laptop and the phone, and where to plug in your own computer vision.
 
 ```
-Robot (cámara) --UDP 5600, JPEG--> Portátil (pasarela) --UDP 5601, JPEG--> Móvil (app Stack-chan VR)
-Robot (servos) <-- posición ------ Portátil (pasarela) <-- control/sensores -- Móvil
+Robot (camera) --UDP 5600, JPEG--> Laptop (relay) --UDP 5601, JPEG--> Phone (Stack-chan VR app)
+Robot (servos) <-- pose ---------- Laptop (relay) <-- control/sensors -- Phone
 ```
 
-**Por qué hay un portátil en medio.** Al ESP32-S3 le cuesta enviar vídeo a varios sitios y procesarlo. El portátil reenvía el vídeo y, si quieres, lo procesa antes con OpenCV: más contraste, detección de caras, grabación. Es donde se programa durante el curso.
+**Why there is a laptop in the middle.** The ESP32-S3 struggles to send video to several places and process it at the same time. The laptop forwards the video and, if you want, processes it first with OpenCV: more contrast, face detection, recording. This is where you code during the course.
 
-## Necesitas
+## What you need
 
-- **El robot.**
-- **El portátil**, con el curso instalado (`setup.sh`).
-- **Un móvil Android** con la app [Stack-chan VR](https://github.com/rhyloo/StackChan-VR) y unas Cardboard.
-- **Opcional, un mando de PS4** emparejado con el **móvil** por Bluetooth (no con el robot: el ESP32-S3 solo tiene Bluetooth LE y el mando necesita Bluetooth clásico).
+- **The robot.**
+- **The laptop**, with the course installed (`setup.sh`).
+- **An Android phone** with the [Stack-chan VR](https://github.com/rhyloo/StackChan-VR) app, and a Cardboard VR viewer.
+- **Optional, a PS4 gamepad** paired with the **phone** over Bluetooth (not with the robot: the ESP32-S3 only has Bluetooth LE and the gamepad needs Bluetooth Classic).
 
-## Paso a paso
+## Run it
 
-1. **Conecta el robot por USB-C y ejecuta, desde la raíz del repo:**
-   ```bash
-   demos/01-vr-cardboard/run.sh            # Windows: demos\01-vr-cardboard\run.bat
-   ```
-   Compila el firmware, lo sube al robot y arranca la pasarela del portátil. En la pantalla del robot verás su IP, su nombre (`stackchan-XXXX`) y, enseguida, «Portátil 192.168.x.x». Mientras nadie mira, el robot no envía vídeo, para ahorrar batería.
-2. **La próxima vez**, si no has cambiado el firmware, basta con `run.sh --sin-flashear` (o `run_relay.sh`, que solo arranca la pasarela). Las opciones de la pasarela de abajo valen en los dos: `run.sh --show`.
-3. **Abre la app** en el móvil. El portátil aparece solo en la lista. Pulsa *Enter VR*, mete el móvil en las Cardboard y mira alrededor.
+Connect the robot over USB-C and run, from the repo root:
 
-Sin móvil, `run_relay.sh --show` muestra el vídeo en una ventana del portátil. Sin robot, `.venv/bin/python demos/01-vr-cardboard/fake_robot.py` simula uno.
+```bash
+demos/01-vr-cardboard/run.sh               # flash the robot and start the demo
+demos/01-vr-cardboard/run.sh --flash-only  # only build and flash; the firmware stays on the robot
+demos/01-vr-cardboard/run.sh --debug       # like the default, and save logs/robot-*.log and logs/relay-*.log
+demos/01-vr-cardboard/run.sh --no-flash    # start the demo with what the robot already has
+demos/01-vr-cardboard/run.sh --help        # every option of this demo
+```
 
-### Opciones de la pasarela
+On Windows use `run.bat` with `-FlashOnly`, `-DebugLogs` and `-NoFlash`.
 
-| Opción | Qué hace |
+The default builds the firmware, flashes it and starts the laptop relay. On the robot's screen you'll see its IP, its name (`stackchan-XXXX`) and, soon after, "Laptop 192.168.x.x". While nobody is watching, the robot sends no video, to save battery.
+
+Next time, if you haven't changed the firmware, `--no-flash` is enough (or `server.sh`, which only starts the relay). The relay options below work with both: `run.sh --show`.
+
+- **No phone?** `server.sh --show` shows the video in a window on the laptop.
+- **No robot?** `.venv/bin/python demos/01-vr-cardboard/fake_robot.py` simulates one.
+
+## Try it
+
+1. **Open the app** on the phone. The laptop shows up in the list by itself.
+2. Tap *Enter VR*, put the phone in the VR viewer and look around. The robot's head follows yours.
+
+### Controls in the VR viewer
+
+| Action | How |
 |---|---|
-| `--show` | Muestra el vídeo en una ventana (con `q` se cierra) |
-| `--enhance` | Más contraste: la cámara GC0308 es oscura en interiores |
-| `--upscale 2` | Duplica la resolución antes de enviarla |
-| `--record videos` | Graba en `videos/` lo que se ve |
-| `--robot stackchan-XXXX` | Empareja solo con ese robot, si hay varios en la red |
-| `--sensors accelerometer=20,light=2 --events shake,touch` | Pide sensores al móvil (en la app: *Sensors → Share with laptop*) |
-| `--always-video` | El robot envía vídeo aunque nadie mire (gasta más batería) |
+| Recenter | Tap the screen (or the Cardboard button), or ✕ on the gamepad |
+| Show/hide the HUD | Double tap, or △ |
+| Change the control mode | □. Modes: view only, head, gamepad, head + gamepad. |
+| Exit | Long press, or ○ |
+| Move the head with the gamepad | Left stick; R2 to go slower |
 
-### Controles en las gafas
+Tapping the robot's screen centers its head.
 
-| Acción | Cómo |
+## How it works
+
+The relay receives the robot's JPEG frames on UDP 5600 and forwards them to the phone on UDP 5601. The phone sends back its control state and, if you ask for them, its sensors; the relay turns that into a head pose for the servos. All messages are in [PROTOCOL.md](PROTOCOL.md).
+
+| File | What for |
 |---|---|
-| Recentrar | Tocar la pantalla (o el botón de las Cardboard), o ✕ en el mando |
-| Mostrar/ocultar el HUD | Doble toque, o △ |
-| Cambiar el modo de control | □. Modos: solo ver, cabeza, mando, cabeza + mando. |
-| Salir | Pulsación larga, o ○ |
-| Mover la cabeza con el mando | Joystick izquierdo; R2 para ir más despacio |
+| `relay/processing.py` | Every frame goes through `process()` before reaching the phone: filters, face detection, overlaying data… |
+| `relay/hooks.py` | React to gamepad buttons (L1, R1, d-pad…), events (shaking the phone, touching the screen) and sensors, and send commands to the robot (`tone`, `leds`, `text`, `home`) or to the phone (`hud`, `vibrate`, `say`) |
+| `firmware/src/main.cpp` | The robot's screen and main loop |
+| `fake_robot.py` | A simulated robot, to test the relay without hardware |
+| `../../lib/StackChanLink/` | The UDP link with the laptop (shared with demo 02) |
+| `../../lib/StackChanHW/` | Servos, LEDs, battery and camera |
 
-## Dónde programar
+### Battery
 
-| Fichero | Para qué |
+The base has a battery of only 550 mAh. What drains it most is the Wi-Fi radio (no power saving, so the video doesn't stutter), the camera and the JPEG compression. That's why:
+- **Video pauses** when no phone is connected and neither `--show` nor `--record` is on.
+- **The relay's status line shows the real current draw** (`mA`), measured by the base's INA226. A negative value means it is charging.
+- **There are commands to measure how much each thing saves:** `brightness 0-255` (screen) and `wifi_sleep 1` (Wi-Fi power saving; adds latency). Send them from `hooks.py` with `robot.cmd("brightness 20")`.
+
+For long classes, keep the robot plugged in over USB-C.
+
+## Options
+
+Relay options (`run.sh` or `server.sh`; `--help` lists them all):
+
+| Option | What it does |
 |---|---|
-| `relay/processing.py` | Cada fotograma pasa por `process()` antes de ir al móvil: filtros, detección de caras, superponer datos… |
-| `relay/hooks.py` | Reaccionar a botones del mando (L1, R1, flechas…), eventos (agitar el móvil, tocar la pantalla) y sensores, y mandar órdenes al robot (`tone`, `leds`, `text`, `home`) o al móvil (`hud`, `vibrate`, `say`) |
-| `firmware/src/main.cpp` | La pantalla del robot y el bucle principal |
-| `../../lib/StackChanLink/` | El enlace UDP con el portátil (compartido con la demo 02) |
-| `../../lib/StackChanHW/` | Servos, LEDs, batería y cámara |
+| `--show` | Shows the video in a window (`q` closes it) |
+| `--enhance` | More contrast: the GC0308 camera is dark indoors |
+| `--upscale 2` | Doubles the resolution before sending it |
+| `--record videos` | Records what you see into `videos/` |
+| `--robot stackchan-XXXX` | Pairs only with that robot, if there are several on the network |
+| `--sensors accelerometer=20,light=2 --events shake,touch` | Asks the phone for sensors (in the app: *Sensors → Share with laptop*) |
+| `--always-video` | The robot sends video even if nobody is watching (uses more battery) |
 
-Todos los mensajes están en [PROTOCOL.md](PROTOCOL.md).
+## Troubleshooting
 
-## Batería
-
-La base tiene una batería de solo 550 mAh. Lo que más gasta es la radio Wi-Fi (sin ahorro de energía, para que el vídeo no tenga tirones), la cámara y la compresión JPEG. Por eso:
-- **El vídeo se pausa** cuando no hay ningún móvil conectado, ni `--show` ni `--record`.
-- **La línea de estado de la pasarela muestra el consumo real** (`mA`), medido con el INA226 de la base. Un valor negativo significa que está cargando.
-- **Hay órdenes para medir cuánto ahorra cada cosa:** `brightness 0-255` (pantalla) y `wifi_sleep 1` (ahorro de Wi-Fi; añade latencia). Mándalas desde `hooks.py` con `robot.cmd("brightness 20")`.
-
-Para clases largas, deja el robot conectado por USB-C.
-
-## Problemas frecuentes
-
-| Síntoma | Solución |
+| Symptom | What to do |
 |---|---|
-| El robot se queda en «WiFi: conectando…» | La red tiene que ser de 2,4 GHz. Revisa nombre y contraseña con `./setup.sh --wifi` y vuelve a flashear. |
-| El robot dice «Buscando el portátil» | La pasarela no está arrancada, el portátil está en otra red, el cortafuegos bloquea UDP 5600-5601 ([docs/ENTORNO.md](../../docs/ENTORNO.md)), o la red aísla a los clientes. |
-| La app no encuentra el portátil | Lo mismo. También puedes escribir la IP del portátil a mano en la app. |
-| Dos pasarelas se pelean por el robot | El robot se queda con la primera que le habla. Cierra la otra (Ctrl+C) o usa `--robot`. |
-| La imagen es muy oscura | `--enhance`, y más luz. |
+| The robot stays on "WiFi: connecting to..." | The network must be 2.4 GHz. Check the name and password with `./setup.sh --wifi` and flash again. |
+| The robot says "Looking for the laptop (relay)..." | The relay isn't running, the laptop is on another network, the firewall blocks UDP 5600-5601 ([docs/ENVIRONMENT.md](../../docs/ENVIRONMENT.md)), or the network isolates clients. |
+| The app doesn't find the laptop | Same causes. You can also type the laptop's IP by hand in the app. |
+| Two relays fight over the robot | The robot sticks with the first one that talks to it. Close the other one (Ctrl+C) or use `--robot`. |
+| The image is very dark | `--enhance`, and more light. |
+
+## Ideas to extend
+
+- Uncomment the face detection example in `relay/processing.py` and draw boxes around faces.
+- Use a free gamepad button in `relay/hooks.py` to beep, change the LEDs or write on the robot's screen.
+- Subscribe to `--events shake` and make the robot react when you shake the phone.

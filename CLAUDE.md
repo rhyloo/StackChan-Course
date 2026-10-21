@@ -1,61 +1,65 @@
-# Curso Stack-chan: guía para asistentes de IA
+# Stack-chan course: guide for AI assistants
 
-Repositorio de un curso para programar Stack-chan, un M5Stack CoreS3 (ESP32-S3) sobre la base K151 con dos servos SCS0009. Lee `README.md` y el README de la demo con la que vayas a trabajar antes de tocar código. Para cualquier cosa del hardware (pines, I2C, servos, límites) la referencia es `docs/ROBOT.md`; las hojas de datos están en `docs/hardware/`.
+Repository of a course for programming Stack-chan, an M5Stack CoreS3 (ESP32-S3) on the K151 base with two SCS0009 servos. Read `README.md` and the README of the demo you are going to work on before touching code. For anything about the hardware (pins, I2C, servos, limits) the reference is `docs/ROBOT.md`; the datasheets are in `docs/hardware/`.
 
-## Idioma
+## Language
 
-- Habla con el usuario en español de España.
-- READMEs, documentación y textos que ve la persona: en español.
-- Identificadores y comentarios del código: en inglés.
+- Talk to the user in Spanish (Spain).
+- Everything in the repo is in English: READMEs, docs, user-facing text, identifiers and comments.
 
-## Estructura
+## Structure
 
-| Ruta | Contenido |
+| Path | Contents |
 |---|---|
-| `demos/01-vr-cardboard/` | Cámara del robot → portátil → móvil (app [rhyloo/StackChan-VR](https://github.com/rhyloo/StackChan-VR), repo aparte) y pose de la cabeza de vuelta. |
-| `demos/02-voz-gemini/` | La 01 más voz: micro del robot → pasarela → Gemini Live (llamadas a funciones) → altavoz del robot. |
-| `demos/03-espnow-balizas/` | Balizas ESP-NOW en ESP32 DevKit, receptor en el robot y trilateración en el portátil. |
-| `demos/04-nfc/` | Lector NFC: el ST25R3916 de la base lee etiquetas NFC-A y el robot enseña su contenido NDEF en pantalla. |
-| `demos/05-nfc-voz/` | Demo 02 + 04: Gemini escribe por voz un texto NDEF en la tarjeta (`escribir_tarjeta`, `leer_tarjeta`). Reutiliza `audio.cpp` y `voice.py` de la demo 02. |
-| `demos/06-infrarrojos/` | Infrarrojos (receptor G10, emisor G5, 38 kHz) con IRremoteESP8266: decodifica mandos y repite el último código al tocar la pantalla. |
-| `demos/07-fotomaton/` | Fotomatón: cuenta atrás, foto → pasarela (filtros Gemini/OpenCV + tramado a 384 px) → el robot imprime por BLE (NimBLE) en una MX10. Protocolo MX10 en `printer_mx10.cpp`. |
-| `demos/08-servo-sg90/` | Servo SG90 en el PORT.B (pulso por G9 y G8 a la vez) con LEDC a 50 Hz, movido desde la pantalla táctil. |
-| `lib/StackChanHW/` | C++ compartido: servos, LEDs, INA226, cámara. Límites y calibración en `stackchan_limits.h`. |
-| `lib/StackChanLink/` | C++ compartido: enlace UDP robot ↔ pasarela y sus puntos de extensión para las demos. |
-| `lib/python/stackchan/` | Python compartido: protocolo y pasarela base. Cada demo aporta `hooks.py` y `processing.py`. |
-| `config/wifi_secrets.h` | Wi-Fi. La genera `setup`, está en `.gitignore` y nunca se sube. |
+| `demos/01-vr-cardboard/` | Robot camera → laptop → phone (app [rhyloo/StackChan-VR](https://github.com/rhyloo/StackChan-VR), separate repo) and head pose back. |
+| `demos/02-gemini-voice/` | Demo 01 plus voice: robot mic → relay → Gemini Live (function calls) → robot speaker. |
+| `demos/03-espnow-beacons/` | ESP-NOW beacons on ESP32 DevKit boards, receiver on the robot and trilateration on the laptop. |
+| `demos/04-nfc/` | NFC reader: the base's ST25R3916 reads NFC-A tags and the robot shows their NDEF content on screen. |
+| `demos/05-nfc-voice/` | Demo 02 + 04: Gemini writes an NDEF text on the card by voice (`write_card`, `read_card`). Reuses `audio.cpp` and `voice.py` from demo 02. |
+| `demos/06-infrared/` | Infrared (receiver G10, emitter G5, 38 kHz) with IRremoteESP8266: decodes remote controls and repeats the last code when the screen is tapped. |
+| `demos/07-photo-booth/` | Photo booth: countdown, photo → relay (Gemini/OpenCV filters + dithering to 384 px) → the robot prints over BLE (NimBLE) on an MX10. MX10 protocol in `printer_mx10.cpp`. |
+| `demos/08-servo-sg90/` | SG90 servo on PORT.B (pulse on G9 and G8 at once) with LEDC at 50 Hz, moved from the touch screen. |
+| `demos/09-sensor-kit/` | KY-0xx modules on PORT.B (G9/G8): digital, ADC, DHT11, DS18B20, encoder, joystick and outputs. Inputs go through a 10k/20k divider because the Grove port gives 5 V. |
+| `demos/10-voice-gamepad/` | Relay only: demo 02's voice plus a PS4 gamepad paired with the laptop, read with pygame (`relay/gamepad.py`). The robot runs demo 02's firmware. Pairing: `tools/pair_gamepad.sh`. |
+| `demos/11-tank/` | Keyestudio KS0428 tank: Arduino UNO firmware (`tank/`, `M<left>,<right>` commands with a 400 ms watchdog) and `laptop/tank.py` (BLE to the HM-10 with bleak). To flash it you must remove the HM-10. |
+| `lib/StackChanHW/` | Shared C++: servos, LEDs, INA226, camera. Limits and calibration in `stackchan_limits.h`. |
+| `lib/StackChanLink/` | Shared C++: UDP link robot ↔ relay and its extension points for the demos. |
+| `lib/python/stackchan/` | Shared Python: protocol and base relay. Each demo provides `hooks.py` and `processing.py`. |
+| `config/wifi_secrets.h` | Wi-Fi. Generated by `setup`, listed in `.gitignore` and never committed. |
 
-El protocolo de todas las demos está en `demos/01-vr-cardboard/PROTOCOL.md`. Si cambias un mensaje del robot, cambia a la vez `lib/StackChanLink/src/link.cpp` y `lib/python/stackchan/protocol.py`. La parte móvil ↔ portátil (UDP 5601) la fija la app: no la cambies sin cambiar la app.
+The protocol of all the demos is in `demos/01-vr-cardboard/PROTOCOL.md`. If you change a robot message, change `lib/StackChanLink/src/link.cpp` and `lib/python/stackchan/protocol.py` together. The phone ↔ laptop part (UDP 5601) is set by the app: don't change it without changing the app.
 
-## Comandos
+## Commands
 
 ```bash
-demos/05-nfc-voz/run.sh [--sin-flashear]                # una demo en un paso: compila, flashea y arranca el portátil
-./setup.sh --no-system                                # entorno .venv + toolchains + compila todo
-.venv/bin/pio run -d demos/02-voz-gemini/firmware     # compilar un firmware
-./tools/flash.sh demos/02-voz-gemini/firmware --no-monitor   # flashear (sin args lista los firmwares)
-./tools/flash.sh demos/03-espnow-balizas/baliza --env baliza2 /dev/ttyUSB0
-.venv/bin/python -m unittest discover -s lib/python/tests     # tests del protocolo
-demos/02-voz-gemini/run_relay.sh --debug              # pasarela; --debug guarda logs/relay-*.log
-.venv/bin/python tools/serial_log.py demos/02-voz-gemini/firmware   # serie del robot → logs/robot-*.log
+demos/05-nfc-voice/run.sh [--no-flash]                       # a demo in one step: build, flash and start the laptop side
+./setup.sh --no-system                                       # .venv environment + toolchains + build everything
+.venv/bin/pio run -d demos/02-gemini-voice/firmware          # build a firmware
+./tools/flash.sh demos/02-gemini-voice/firmware --no-monitor # flash (with no args it lists the firmwares)
+./tools/flash.sh demos/03-espnow-beacons/beacon --env beacon2 /dev/ttyUSB0
+.venv/bin/python -m unittest discover -s lib/python/tests    # protocol tests
+demos/02-gemini-voice/server.sh --debug                   # relay; --debug saves logs/relay-*.log
+.venv/bin/python tools/serial_log.py demos/02-gemini-voice/firmware   # robot serial → logs/robot-*.log
 ```
 
-Plataforma fijada: `espressif32@7.1.2` (Arduino-ESP32 2.0.17, ESP-IDF 4.4.7), M5Unified 0.2.21.
+`run.sh` modes: `--flash-only`, `--debug`, `--no-flash`, plus `--usb PORT` and `--help` (Windows `run.bat`: `-FlashOnly`, `-DebugLogs`, `-NoFlash`, `-Usb`). Sub-commands: `demos/03-espnow-beacons/run.sh beacons`, `demos/11-tank/run.sh tank`.
 
-## Reglas que no se ven en el código
+Pinned platform: `espressif32@7.1.2` (Arduino-ESP32 2.0.17, ESP-IDF 4.4.7), M5Unified 0.2.21.
 
-- **La GC0308 no hace JPEG por hardware.** Captura en RGB565 y comprime con `frame2jpg`; `PIXFORMAT_JPEG` falla.
-- **Respeta los límites de la cabeza** de `stackchan_limits.h` y el limitador de velocidad de los servos. Por debajo del tilt mínimo la barbilla choca con la base.
-- **No subas los LEDs de la base por encima de `LED_MAX_LEVEL`.** A plena potencia, junto con el altavoz y la Wi-Fi, el PMIC cortó la alimentación del robot.
-- **I2C y pantalla solo desde la tarea `loop()`.** Las tareas de red dejan órdenes en `PendingCommands`.
-- **Reparto de núcleos:** el 0 lleva la red y la compresión de vídeo; el 1, servos, audio y pantalla.
-- **El micro y el altavoz del CoreS3 comparten I2S:** el audio es half-duplex.
-- **En modo *Head*, la app reenvía la pose cada 500 ms.** Para mover la cabeza por código, llama antes a `robot.pause_phone_control()`.
-- **OpenCV está fijado a la 4.x.** La 5 quitó `CascadeClassifier`.
-- **El robot se empareja con la primera pasarela que le habla.** Dos pasarelas abiertas se pelean por él.
-- **Secretos:** nunca imprimas ni subas la contraseña de la Wi-Fi ni `GEMINI_API_KEY`.
-- **Para cerrar procesos, usa su PID.** `pkill -f <patrón>` cierra también la propia shell que lo ejecuta.
+## Rules you can't see in the code
 
-## Forma de trabajar
+- **The GC0308 has no hardware JPEG.** Capture in RGB565 and compress with `frame2jpg`; `PIXFORMAT_JPEG` fails.
+- **Respect the head limits** in `stackchan_limits.h` and the servos' speed limiter. Below the minimum tilt the chin hits the base.
+- **Don't raise the base LEDs above `LED_MAX_LEVEL`.** At full power, together with the speaker and Wi-Fi, the PMIC cut the robot's power.
+- **I2C and screen only from the `loop()` task.** Network tasks leave orders in `PendingCommands`.
+- **Core split:** core 0 runs the network and video compression; core 1, servos, audio and screen.
+- **The CoreS3's mic and speaker share I2S:** audio is half-duplex.
+- **In *Head* mode, the app resends the pose every 500 ms.** To move the head from code, call `robot.pause_phone_control()` first.
+- **OpenCV is pinned to 4.x.** Version 5 removed `CascadeClassifier`.
+- **The robot pairs with the first relay that talks to it.** Two open relays fight over it.
+- **Secrets:** never print or commit the Wi-Fi password or `GEMINI_API_KEY`.
+- **To close processes, use their PID.** `pkill -f <pattern>` also kills the very shell running it.
 
-Hay hardware real y una persona que lo prueba. Compila, flashea si el robot está conectado, haz como mucho una comprobación rápida y pásale los pasos para probarlo. No montes simulaciones largas. Después, lee los `logs/` antes de cambiar nada.
+## How to work
+
+There is real hardware and a person who tests it. Build, flash if the robot is connected, do at most one quick check and give them the steps to test it. Don't set up long simulations. Afterwards, read the `logs/` before changing anything.

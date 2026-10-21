@@ -46,7 +46,7 @@ def debug(msg):
 
 
 def log_exception(where):
-    log(f"ERROR en {where}: {sys.exc_info()[1]!r}" + ("" if _debug else "  (más detalle con --debug)"))
+    log(f"ERROR in {where}: {sys.exc_info()[1]!r}" + ("" if _debug else "  (more detail with --debug)"))
     debug(traceback.format_exc())
 
 
@@ -60,10 +60,10 @@ def start_debug_log(directory="logs"):
     faulthandler.enable(_logfile, all_threads=True)
 
     def hook(args):
-        log(f"ERROR no capturado en el hilo {args.thread.name}: {args.exc_value!r}")
+        log(f"Uncaught ERROR in thread {args.thread.name}: {args.exc_value!r}")
         debug("".join(traceback.format_exception(args.exc_type, args.exc_value, args.exc_traceback)))
     threading.excepthook = hook
-    log(f"Modo depuración: todo se guarda en {path}")
+    log(f"Debug mode: everything is saved to {path}")
     return path
 
 
@@ -84,14 +84,21 @@ class Robot:
         self.limits = dict(P.DEFAULT_LIMITS)
         self.seen = {}                # name -> ip, every robot announcing on the network
         self.pose_seq = 0
+        self.last_pose = None         # (pan, tilt) last sent, for the --debug head log
         self.want_video = False       # someone is watching: the robot only captures then
         self.uptime = None            # from HELLO: if it goes down, the robot rebooted
+        self.reboots = 0              # the video worker resets its frame assembler on each one
         self.phone_control_paused_until = 0.0
         self.lock = threading.Lock()
 
     @property
     def online(self):
         return self.addr is not None and time.monotonic() - self.last_seen < ROBOT_TIMEOUT
+
+    # AXP2101 REG 21h: why the PMIC cut the robot's power (bit -> meaning).
+    PMIC_OFF = {7: "PMIC over-temperature", 6: "DCDC over-voltage", 5: "DCDC under-voltage",
+                4: "VBUS over-voltage", 3: "VSYS under-voltage (supply too weak for the load)",
+                2: "EN pin low", 1: "software power-off", 0: "power button"}
 
     def on_hello(self, info, addr):
         name = str(info.get("name", addr[0]))
@@ -107,14 +114,21 @@ class Robot:
         uptime = info.get("uptime_s")
         if isinstance(uptime, (int, float)) and self.uptime is not None and uptime + 2 < self.uptime:
             reason = info.get("reset", "?")
-            hint = {"panic": "el programa ha fallado: mira tools/serial_log.py",
-                    "brownout": "ha caído la tensión: batería baja o pico de los servos",
-                    "task_watchdog": "una tarea se ha quedado bloqueada",
-                    "int_watchdog": "una interrupción se ha quedado bloqueada"}.get(reason, "")
-            log(f"El robot se ha REINICIADO. Motivo: {reason}" + (f" ({hint})" if hint else ""))
+            hint = {"panic": "the program crashed: see tools/serial_log.py",
+                    "brownout": "the voltage dropped: low battery or a servo current spike",
+                    "task_watchdog": "a task got stuck",
+                    "int_watchdog": "an interrupt got stuck"}.get(reason, "")
+            log(f"The robot REBOOTED. Reason: {reason}" + (f" ({hint})" if hint else ""))
+            off = info.get("pmic_off")
+            if reason == "power_on" and isinstance(off, int):
+                causes = [text for bit, text in self.PMIC_OFF.items() if off & (1 << bit)]
+                log(f"Power cut by the PMIC: {', '.join(causes) or 'no cause recorded'} "
+                    f"(REG 21h = 0x{off:02X}, power-on source REG 20h = 0x{info.get('pmic_on', 0):02X})")
+            self.reboots += 1
         if isinstance(uptime, (int, float)):
             if self.uptime is None:
-                debug(f"robot uptime {uptime} s, último reinicio: {info.get('reset')}")
+                debug(f"robot uptime {uptime} s, last reset: {info.get('reset')}, "
+                      f"PMIC on 0x{info.get('pmic_on', 0):02X} off 0x{info.get('pmic_off', 0):02X}")
             self.uptime = uptime
         self.addr, self.name = addr, name
         self.last_seen = time.monotonic()
@@ -137,6 +151,7 @@ class Robot:
         tilt = clamp(tilt, *self.limits["tilt"])
         with self.lock:
             self.pose_seq += 1
+            self.last_pose = (pan, tilt)
             self.sock.sendto(P.pose_packet(self.pose_seq, pan, tilt), self.addr)
 
     def pause_phone_control(self, seconds):
@@ -232,6 +247,8 @@ class Relay:
         self.phones = Phones(self.phone_sock)
         self.frames = LatestFrame()
         self.assembler = P.FrameAssembler()
+        self._assembler_reboots = 0       # robot.reboots when the assembler was made
+        self._device_info_logged = {}     # phone ip -> device text already logged
         self.out_frame_id = 0
         self.decode = processing.needs_decoding(args)
         self.extra_robot_handlers = {}    # msg type -> fn(payload, addr): lets a demo add robot messages
@@ -249,6 +266,7 @@ class Relay:
         self.running = True
         self._last_frame_error = 0.0
         self._last_status_log = 0.0
+        self._last_head = None
 
     @staticmethod
     def _bind(port, broadcast):
@@ -283,6 +301,11 @@ class Relay:
             if mtype == P.R_VIDEO:
                 chunk = P.parse_video_chunk(data)
                 if chunk:
+                    # A rebooted robot numbers its frames from 0 again: the assembler would
+                    # drop them all as older than the last one and the video would never come back.
+                    if self.robot.reboots != self._assembler_reboots:
+                        self._assembler_reboots = self.robot.reboots
+                        self.assembler = P.FrameAssembler()
                     done = self.assembler.add(*chunk)
                     if done:
                         self.stats["in"] += 1
@@ -295,7 +318,7 @@ class Relay:
                 try:
                     self.extra_robot_handlers[mtype](payload, addr)
                 except Exception:
-                    log_exception(f"mensaje del robot 0x{mtype:02x}")
+                    log_exception(f"robot message 0x{mtype:02x}")
 
     # ---- video worker: optional processing, then out to the phones ----
     def video_loop(self):
@@ -371,7 +394,7 @@ class Relay:
             try:
                 self.handle_phone(msg[0], msg[1], addr)
             except Exception:  # a bad packet or a bug in hooks.py must not kill the relay
-                log_exception(f"paquete del móvil 0x{msg[0]:02x} (hooks.py)")
+                log_exception(f"phone packet 0x{msg[0]:02x} (hooks.py)")
 
     def handle_phone(self, mtype, payload, addr):
         if mtype == P.DISCOVER:
@@ -416,9 +439,13 @@ class Relay:
                     self.sensor_counts[r[0]] = self.sensor_counts.get(r[0], 0) + 1
             self.hooks.on_sensors(readings, self.robot, self.phones)
         elif mtype == P.DEVICE_INFO and obj is not None:
+            # The app sends it in several parts and on every (re)connect: say it once per phone.
             d = obj.get("device", {})
-            log(f"DEVICE_INFO part {obj.get('part')}/{obj.get('parts')}: {d.get('manufacturer')} "
-                f"{d.get('model')} (SDK {d.get('android_sdk')}), {len(obj.get('sensors', []))} sensors")
+            text = f"{d.get('manufacturer')} {d.get('model')} (SDK {d.get('android_sdk')})"
+            if self._device_info_logged.get(addr[0]) != text:
+                self._device_info_logged[addr[0]] = text
+                log(f"Phone {addr[0]}: {text}")
+            debug(f"DEVICE_INFO part {obj.get('part')}/{obj.get('parts')}, {len(obj.get('sensors', []))} sensors")
         elif mtype == P.BLE_SCAN and obj is not None and self.args.verbose:
             log(f"BLE_SCAN {len(obj.get('devices', []))} devices")
 
@@ -483,11 +510,18 @@ class Relay:
         self.sensor_counts.clear()
         line = (f"{robot} | phones {len(self.phones.clients)} out {self.relay_fps:.1f}fps "
                 f"ctrl {self.stats['ctrl'] / dt:.0f}/s drop {self.assembler.dropped} {sensors}")
+        # --debug: where the head should be vs where the robot says it is, to tell
+        # "no orders arrive" from "orders arrive but the servos don't move".
+        head = (self.robot.last_pose, t.get("pan"), t.get("tilt"), self.robot.phone_control_paused())
+        if self.robot.last_pose and head != self._last_head:
+            self._last_head = head
+            debug(f"head: sent pan {head[0][0]:+.2f} tilt {head[0][1]:+.2f} | robot pan {head[1]} tilt {head[2]}"
+                  f" | ctrl {self.stats['ctrl'] / dt:.0f}/s" + (" | phone control PAUSED" if head[3] else ""))
         self.stats["ctrl"] = 0
         now = time.monotonic()
         if now - self._last_status_log >= 10:
             self._last_status_log = now
-            debug("estado: " + line)
+            debug("status: " + line)
         if self.args.quiet or not sys.stdout.isatty():
             return
         # Exactly one terminal line: a longer one wraps and "\r" only rewrites

@@ -1,15 +1,15 @@
-// Demo 04 - Lector NFC en el Stack-chan.
+// Demo 04 - NFC reader on Stack-chan.
 //
-// La base K151 lleva un ST25R3916 (I2C 0x50), en la placa del panel táctil. Es un
-// lector/escritor NFC: puede leer y escribir etiquetas. Esta demo solo lee:
+// The K151 base has an ST25R3916 (I2C 0x50), on the touch panel board. It is an
+// NFC reader/writer: it can read and write tags. This demo only reads:
 //
-// 1. Busca etiquetas NFC-A (ISO 14443A: NTAG, MIFARE Ultralight/Classic/DESFire,
-//    la mayoría de pegatinas y tarjetas) cada POLL_MS.
-// 2. Cuando apoyas una, pita, pone los LEDs de la base en verde y enseña en
-//    pantalla su UID, el tipo y la memoria.
-// 3. Si la etiqueta trae un mensaje NDEF (lo que escribe el móvil con NFC Tools),
-//    pinta cada registro: texto, URL o tipo MIME.
-// 4. Si no trae NDEF, saca por el serie el volcado de la memoria.
+// 1. Looks for NFC-A tags (ISO 14443A: NTAG, MIFARE Ultralight/Classic/DESFire,
+//    most stickers and cards) every POLL_MS.
+// 2. When you hold one up, it beeps, turns the base LEDs green and shows
+//    its UID, type and memory on screen.
+// 3. If the tag holds an NDEF message (what the phone writes with NFC Tools),
+//    it draws each record: text, URL or MIME type.
+// 4. If there is no NDEF, it prints a memory dump on the serial port.
 #include <M5Unified.h>
 #include <M5UnitUnified.h>
 #include <M5UnitUnifiedNFC.h>
@@ -44,24 +44,24 @@ static void drawHeader(const char* msg, uint16_t color) {
 }
 
 static void drawWaiting() {
-    drawHeader("NFC: acerca una etiqueta", TFT_CYAN);
-    lcd.println("Acerca la tarjeta o la pegatina");
-    lcd.println("a la base del robot, a 1-2 cm.");
+    drawHeader("NFC: bring a tag close", TFT_CYAN);
+    lcd.println("Hold the card or sticker");
+    lcd.println("1-2 cm from the robot's base.");
     lcd.println();
     lcd.setTextColor(TFT_DARKGREY, TFT_BLACK);
-    lcd.println("Lee NFC-A: NTAG, MIFARE");
+    lcd.println("Reads NFC-A: NTAG, MIFARE");
     lcd.println("Ultralight / Classic / DESFire.");
     lcd.setTextColor(TFT_WHITE, TFT_BLACK);
 }
 
 static const char* tnfName(TNF t) {
     switch (t) {
-        case TNF::Empty:     return "vacío";
-        case TNF::Wellknown: return "estándar";
+        case TNF::Empty:     return "empty";
+        case TNF::Wellknown: return "well-known";
         case TNF::MIMEMedia: return "MIME";
         case TNF::URI:       return "URI";
-        case TNF::External:  return "externo";
-        default:             return "otro";
+        case TNF::External:  return "external";
+        default:             return "other";
     }
 }
 
@@ -71,8 +71,8 @@ static bool showNdef() {
     if (!s_nfc.ndefIsValidFormat(valid)) return false;
     if (!valid) {
         lcd.setTextColor(TFT_YELLOW, TFT_BLACK);
-        lcd.println("Sin datos NDEF (vacía o formato propio).");
-        lcd.println("Volcado de memoria: monitor serie.");
+        lcd.println("No NDEF data (empty or custom format).");
+        lcd.println("Memory dump: serial monitor.");
         Serial.println("No NDEF data on this tag");
         s_nfc.dump();   // raw memory to the serial log
         return true;
@@ -81,7 +81,7 @@ static bool showNdef() {
     if (!s_nfc.ndefRead(msg)) return false;
     if (!msg.isMessageTLV() || msg.records().empty()) {
         lcd.setTextColor(TFT_YELLOW, TFT_BLACK);
-        lcd.println("Formato NDEF, pero sin mensaje.");
+        lcd.println("NDEF format, but no message.");
         return true;
     }
     int i = 1;
@@ -106,10 +106,10 @@ static void onTag(PICC& picc) {
     M5.Speaker.tone(3000, 40);
     setBaseLeds(0, LED_MAX_LEVEL, 0);
 
-    drawHeader("NFC: etiqueta leída", TFT_GREEN);
+    drawHeader("NFC: tag read", TFT_GREEN);
     lcd.printf("UID:  %s\n", picc.uidAsString().c_str());
-    lcd.printf("Tipo: %s\n", picc.typeAsString().c_str());
-    lcd.printf("Memoria: %u B de usuario / %u B\n", (unsigned)picc.userAreaSize(), (unsigned)picc.totalSize());
+    lcd.printf("Type: %s\n", picc.typeAsString().c_str());
+    lcd.printf("Memory: %u B user / %u B\n", (unsigned)picc.userAreaSize(), (unsigned)picc.totalSize());
     lcd.println();
     Serial.printf("Tag UID=%s type=%s ATQA=%04X SAK=%02X user=%u total=%u\n", picc.uidAsString().c_str(),
                   picc.typeAsString().c_str(), picc.atqa, picc.sak, (unsigned)picc.userAreaSize(),
@@ -117,20 +117,20 @@ static void onTag(PICC& picc) {
 
     if (!known) {
         lcd.setTextColor(TFT_ORANGE, TFT_BLACK);
-        lcd.println("No se pudo identificar: deja la");
-        lcd.println("etiqueta quieta y vuelve a probar.");
+        lcd.println("Could not identify it: hold the");
+        lcd.println("tag still and try again.");
     } else if (picc.isMifareClassic()) {
         // Classic sectors need a key; the dump uses the default one and prints what it can.
         lcd.setTextColor(TFT_YELLOW, TFT_BLACK);
-        lcd.println("MIFARE Classic: sus sectores van con");
-        lcd.println("clave. Volcado: monitor serie.");
+        lcd.println("MIFARE Classic: its sectors need a");
+        lcd.println("key. Dump: serial monitor.");
         s_nfc.dump();
     } else if (!picc.supportsNDEF()) {
         lcd.setTextColor(TFT_YELLOW, TFT_BLACK);
-        lcd.println("Esta etiqueta no admite NDEF.");
+        lcd.println("This tag does not support NDEF.");
     } else if (!showNdef()) {
         lcd.setTextColor(TFT_RED, TFT_BLACK);
-        lcd.println("Error al leer: la etiqueta se movió.");
+        lcd.println("Read error: the tag moved.");
     }
     s_nfc.deactivate();
     setBaseLeds(0, 0, 0);
@@ -148,9 +148,9 @@ void setup() {
     setBaseLeds(0, 0, 0);
 
     if (!s_units.add(s_unit, M5.In_I2C) || !s_units.begin()) {
-        drawHeader("NFC: no encuentro el lector", TFT_RED);
-        lcd.println("El ST25R3916 (I2C 0x50) no responde.");
-        lcd.println("¿Está bien encajada la base?");
+        drawHeader("NFC: reader not found", TFT_RED);
+        lcd.println("The ST25R3916 (I2C 0x50) does not answer.");
+        lcd.println("Is the base seated properly?");
         Serial.println("ST25R3916 init failed");
         for (;;) delay(1000);
     }

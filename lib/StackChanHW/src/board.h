@@ -7,6 +7,10 @@
 #include "stackchan_limits.h"
 
 bool boardInit();                      // power rails + base coprocessor; true if the base answered
+// AXP2101 REG 20h (power-on source) and 21h (last power-off source), read in boardInit().
+// Bits are decoded in lib/python/stackchan/relay.py and docs/ROBOT.md.
+uint8_t pmicPowerOnStatus();
+uint8_t pmicPowerOffStatus();
 void servoInit();                      // UART1 @ 1 Mbps on GPIO 6/7, torque on, head to home
 
 // Thread-safe head target, in radians. The servo task moves towards it with a
@@ -16,6 +20,11 @@ void servoHome();                      // slow, direct move to (0, 0)
 void servoSetTorque(bool on);
 void servoGetCurrent(float* panRad, float* tiltRad);
 void servoStartTask();                 // starts the 25 Hz servo loop
+// Diagnostics: with the probe on, torque is off (move the head by hand) and the servo
+// task reads each servo's present position (register 0x38, raw steps; -1 = no answer).
+void servoSetProbe(bool on);
+void servoWheelTest(int pwm, int ms);  // spin the pan in motor mode (pwm -1000..1000), print positions
+void servoProbeRead(int* panRaw, int* tiltRaw);
 
 void setBaseLeds(uint8_t r, uint8_t g, uint8_t b);
 

@@ -1,8 +1,8 @@
-"""Stack-chan VR wire protocol (see ../PROTOCOL.md).
+"""Stack-chan VR wire protocol (see demos/01-vr-cardboard/PROTOCOL.md).
 
 Every datagram: b"SV", version 1, type byte, then the payload. Big-endian.
 Phone <-> laptop on UDP 5601 is fixed by the Android app (section 3 of the
-app spec). Robot <-> laptop on UDP 5600 is ours and mirrors firmware/src/link.cpp.
+app spec). Robot <-> laptop on UDP 5600 is ours and mirrors lib/StackChanLink/src/link.cpp.
 """
 import json
 import struct
@@ -24,7 +24,7 @@ SENSOR_DATA, DEVICE_INFO, EVENT, BLE_SCAN = 0x16, 0x17, 0x18, 0x19
 # Robot <-> laptop
 R_HELLO, R_ACK, R_VIDEO, R_TELEMETRY, R_POSE, R_CMD = 0x20, 0x21, 0x22, 0x23, 0x24, 0x25
 
-DEFAULT_LIMITS = {"pan": [-2.2689, 2.7925], "tilt": [-0.050, 0.480]}
+DEFAULT_LIMITS = {"pan": [-3.1416, 3.1416], "tilt": [-0.12, 1.2763]}
 
 _VIDEO = struct.Struct("!2sBBIHHI")
 _POSE = struct.Struct("!2sBBIff")

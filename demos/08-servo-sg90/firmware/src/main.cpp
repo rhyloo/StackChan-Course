@@ -1,16 +1,16 @@
-// Demo 08 - Un servo SG90 en el PORT.B del Stack-chan, movido desde la pantalla.
+// Demo 08 - An SG90 servo on Stack-chan's PORT.B, moved from the screen.
 //
-// Conexión (PORT.B):
-//   SG90 negro -> negro / - (GND)    SG90 rojo -> rojo / + (5 V)    SG90 azul (señal) -> PWM
-// La señal puede ir al pin G9 (cable amarillo) o al G8 (blanco): el pulso sale
-// por los dos a la vez, así funciona sea cual sea.
+// Wiring (PORT.B):
+//   SG90 black -> black / - (GND)    SG90 red -> red / + (5 V)    SG90 blue (signal) -> PWM
+// The signal can go to pin G9 (yellow wire) or G8 (white): the pulse comes out
+// of both at once, so it works either way.
 //
-// Un servo de modelismo se controla con un pulso cada 20 ms (50 Hz): la anchura
-// del pulso dice el ángulo. Con el SG90, ~500 µs es 0° y ~2400 µs es 180°.
-// El ESP32 genera ese pulso por hardware con el periférico LEDC (su PWM).
+// A hobby servo is driven by one pulse every 20 ms (50 Hz): the pulse width
+// sets the angle. With the SG90, ~500 µs is 0° and ~2400 µs is 180°.
+// The ESP32 makes that pulse in hardware with the LEDC peripheral (its PWM).
 //
-// En la pantalla: arrastra la barra, o toca 0°, 90°, 180° o «Barrido».
-// Por el monitor serie: "angulo 45".
+// On the screen: drag the slider, or tap 0°, 90°, 180° or "Sweep".
+// From the serial monitor: "angle 45".
 #include <M5Unified.h>
 #include "board.h"
 
@@ -78,7 +78,7 @@ static void drawSlider() {
 }
 
 static void drawButtons() {
-    const char* labels[4] = { "0°", "90°", "180°", s_sweep ? "Parar" : "Barrido" };
+    const char* labels[4] = { "0°", "90°", "180°", s_sweep ? "Stop" : "Sweep" };
     for (int i = 0; i < 4; i++) {
         const uint16_t bg = i == 3 ? (s_sweep ? TFT_RED : TFT_MAGENTA) : TFT_BLUE;
         lcd.fillRoundRect(i * 80 + 3, BTN_Y + 2, 74, BTN_H - 4, 8, bg);
@@ -113,14 +113,14 @@ void setup() {
     lcd.fillRect(0, 0, lcd.width(), DIAL_Y, TFT_ORANGE);
     lcd.setTextColor(TFT_BLACK, TFT_ORANGE);
     lcd.setCursor(6, 4);
-    lcd.print("Servo SG90 · PORT.B (G9/G8)");
+    lcd.print("Servo SG90 - PORT.B (G9/G8)");
     s_dial.setPsram(true);
     s_dial.setColorDepth(16);
     s_dial.createSprite(lcd.width(), DIAL_H);
     drawDial();
     drawSlider();
     drawButtons();
-    Serial.printf("\n[Demo 08 SG90] signal on G9 and G8 (PORT.B), %d-%d us, write 'angulo 45'\n", MIN_US, MAX_US);
+    Serial.printf("\n[Demo 08 SG90] signal on G9 and G8 (PORT.B), %d-%d us, write 'angle 45'\n", MIN_US, MAX_US);
 }
 
 void loop() {
@@ -144,7 +144,7 @@ void loop() {
     if (Serial.available()) {
         String line = Serial.readStringUntil('\n');
         line.trim();
-        if (line.startsWith("angulo ")) { s_sweep = false; setTarget(line.substring(7).toFloat()); drawButtons(); }
+        if (line.startsWith("angle ")) { s_sweep = false; setTarget(line.substring(6).toFloat()); drawButtons(); }
     }
 
     // Move towards the target at SPEED_DEG_S, one step per tick.

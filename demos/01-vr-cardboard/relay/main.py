@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Demo 01 - VR con Cardboard: pasarela del portátil.
+"""Demo 01 - Cardboard VR: laptop relay.
 
-    ./run_relay.sh [--show] [--enhance] [--record DIR] ...   (--help para ver todo)
+    ./server.sh [--show] [--enhance] [--record DIR] ...   (--help shows everything)
 
-La pasarela base está en lib/python/stackchan/relay.py; aquí solo se le pasan
-los dos ficheros de esta demo que puedes editar: processing.py y hooks.py.
+The base relay lives in lib/python/stackchan/relay.py; here we only hand it
+the two files of this demo you can edit: processing.py and hooks.py.
 """
 import os
 import sys

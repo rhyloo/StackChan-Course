@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
-# Lo que hacen los run.sh de cada demo: comprueba que todo está listo, sube el
-# firmware al robot y arranca lo que la demo necesita en el portátil.
+# What each demo's run.sh does: checks that everything is ready, flashes the
+# firmware to the robot and starts what the demo needs on the laptop.
 #
-#     tools/run_demo.sh <demo> [--sin-flashear] [--puerto /dev/ttyACM0] [opciones de la pasarela]
-#     tools/run_demo.sh 03 balizas      # demo 03: flashea las tres balizas, una detrás de otra
+#     tools/run_demo.sh <demo> [mode] [--usb /dev/ttyACM0] [relay options]
 #
-# <demo> es el número (01, 02...) o la carpeta. Lo normal es no llamarlo a mano
-# sino con demos/<demo>/run.sh o con ./demo.sh (menú).
+# Modes:
+#     (none)           flash the firmware and start the demo
+#     --flash-only     only build and flash the firmware; it stays in the robot's flash
+#     --debug          like no mode, but save the robot's serial (logs/robot-*.log)
+#                      and the relay with full detail (logs/relay-*.log)
+#     --no-flash       start the demo with what the robot already has
+#
+#     tools/run_demo.sh 03 beacons      # demo 03: flash the three beacons, one after another
+#
+# <demo> is the number (01, 02...) or the folder. You normally don't call it by
+# hand but through demos/<demo>/run.sh or ./demo.sh (menu).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -15,52 +23,116 @@ PY=.venv/bin/python
 say()  { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 fail() { printf '\n\033[1;31m%s\033[0m\n' "$*" >&2; exit 1; }
 
-[ $# -ge 1 ] || fail "Uso: tools/run_demo.sh <demo> [--sin-flashear] [--puerto PUERTO] [opciones]"
+[ $# -ge 1 ] || fail "Usage: tools/run_demo.sh <demo> [--flash-only | --debug | --no-flash] [--usb PORT] [options]"
 DEMO="$(ls -d demos/"${1#demos/}"* 2>/dev/null | head -1 || true)"
 DEMO="${DEMO%/}"
-[ -d "$DEMO" ] || fail "No existe la demo '$1'. Hay: $(ls demos | tr '\n' ' ')"
+[ -d "$DEMO" ] || fail "Demo '$1' does not exist. Available: $(ls demos | tr '\n' ' ')"
 shift
 
-[ -x "$PY" ] || fail "Falta el entorno. Ejecuta primero: ./setup.sh"
-[ -f config/wifi_secrets.h ] || fail "Falta la Wi-Fi. Ejecuta: ./setup.sh --wifi"
+# --help / -h: the modes, then the options of the program the demo runs on the laptop.
+show_help() {
+    local laptop=""
+    case "$(basename "$DEMO")" in
+        01-*|02-*|05-*|07-*|10-*) laptop="$DEMO/relay/main.py" ;;
+        03-*) laptop="$DEMO/laptop/position.py" ;;
+        11-*) laptop="$DEMO/laptop/drive.py" ;;
+    esac
+    cat <<EOF
+Usage: $DEMO/run.sh [mode] [--usb PORT] [options]
 
+Modes:
+  (none)        flash the firmware and start the demo
+  --flash-only  only build and flash the firmware; it stays on the robot
+  --debug       like no mode, and save logs/robot-*.log (robot serial) and logs/relay-*.log
+  --no-flash    start the demo with what the robot already has
+  --usb PORT    USB port of the board (default: found automatically)
+  -h, --help    show this help
+EOF
+    case "$(basename "$DEMO")" in
+        03-*) printf '\nAlso:\n  %s/run.sh beacons   flash the three ESP32 beacons, one after another\n' "$DEMO" ;;
+        11-*) printf '\nAlso:\n  %s/run.sh tank      flash the tank'"'"'s Arduino (remove the HM-10 first)\nHere --flash-only is the same as "tank"; --debug and --no-flash do nothing.\n' "$DEMO" ;;
+    esac
+    if [ -z "$laptop" ]; then
+        printf '\nThis demo has nothing to run on the laptop: it shows the robot'"'"'s serial output.\n'
+    elif [ -x "$PY" ]; then
+        printf '\nAny other option goes to %s:\n\n' "$laptop"
+        "$PY" "$laptop" --help
+    fi
+    exit 0
+}
+for a in "$@"; do case "$a" in -h|--help) show_help ;; esac; done
+
+[ -x "$PY" ] || fail "The environment is missing. Run first: ./setup.sh"
+[ -f config/wifi_secrets.h ] || fail "The Wi-Fi settings are missing. Run: ./setup.sh --wifi"
+
+MODE=normal     # normal | flash-only | debug
 FLASH=1
 PORT=""
+FW=""           # firmware flashed on the robot (for serial_log.py to decode crashes)
 ARGS=()
 while [ $# -gt 0 ]; do
     case "$1" in
-        --sin-flashear) FLASH=0 ;;
-        --puerto) shift; PORT="$1" ;;
+        --flash-only) MODE=flash-only ;;
+        --debug) MODE=debug ;;
+        --no-flash) FLASH=0 ;;
+        --usb) shift; PORT="$1" ;;
         *) ARGS+=("$1") ;;
     esac
     shift
 done
+[ "$MODE" != flash-only ] || [ "$FLASH" = 1 ] || fail "--flash-only and --no-flash don't go together."
 
 need_gemini_key() {
-    [ -n "${GEMINI_API_KEY:-}" ] || fail "Esta demo usa Gemini y falta la clave.
-Créala gratis en https://aistudio.google.com/apikey y ejecuta:
-    export GEMINI_API_KEY=\"tu-clave\"
-(para no repetirlo, añade esa línea al final de ~/.bashrc)"
+    [ "$MODE" != flash-only ] || return 0
+    [ -n "${GEMINI_API_KEY:-}" ] || fail "This demo uses Gemini and the key is missing.
+Create one for free at https://aistudio.google.com/apikey and run:
+    export GEMINI_API_KEY=\"your-key\"
+(to avoid repeating it, add that line at the end of ~/.bashrc)"
 }
 
-# flash_robot <carpeta-del-firmware>
+# flash_robot <firmware-folder>. With --flash-only it stops here.
 flash_robot() {
-    [ "$FLASH" = 1 ] || { say "Sin flashear (--sin-flashear): uso lo que ya tiene el robot"; return; }
+    FW="$1"
+    [ "$FLASH" = 1 ] || { say "Not flashing (--no-flash): using what the robot already has"; return; }
     local port="$PORT"
     [ -n "$port" ] || port="$($PY tools/find_port.py)"
-    [ -n "$port" ] || fail "No encuentro el robot por USB.
-- Conéctalo con un cable USB-C de datos (algunos solo cargan).
-- Si sigue sin aparecer, mantén pulsado su botón RST unos 3 s, hasta que el LED se ponga verde, y repite."
-    say "Compilando y subiendo $1 al robot ($port). La primera vez tarda unos minutos..."
-    ./tools/flash.sh "$1" "$port" --no-monitor || fail "No se pudo subir el firmware.
-- ¿Tienes abierto un monitor serie? Ciérralo: ocupa el puerto.
-- Si no, mantén pulsado RST unos 3 s (LED verde, modo descarga) y repite."
-    say "Firmware subido. El robot se reinicia (unos segundos)."
+    [ -n "$port" ] || fail "I can't find the robot on USB.
+- Connect it with a USB-C data cable (some cables only charge).
+- If it still doesn't show up, hold its RST button for about 3 s, until the LED turns green, and try again."
+    say "Building and flashing $1 to the robot ($port). The first time takes a few minutes..."
+    ./tools/flash.sh "$1" "$port" --no-monitor || fail "Could not flash the firmware.
+- Do you have a serial monitor open? Close it: it holds the port.
+- If not, hold RST for about 3 s (green LED, download mode) and try again."
+    if [ "$MODE" = flash-only ]; then
+        say "Firmware flashed. It stays on the robot even if you unplug it or switch it off."
+        [ ! -d "$DEMO/relay" ] || echo "This demo needs the laptop relay: $DEMO/run.sh --no-flash"
+        exit 0
+    fi
+    say "Firmware flashed. The robot restarts (a few seconds)."
+}
+
+# run <command...>: starts the laptop side. With --debug the robot's serial goes
+# to logs/robot-*.log in the background while it runs.
+run() {
+    if [ "$MODE" != debug ] || [ -z "$FW" ]; then exec "$@"; fi
+    "$PY" tools/serial_log.py "$FW" ${PORT:+"$PORT"} >/dev/null 2>&1 &
+    local pid=$!
+    trap "kill $pid 2>/dev/null" EXIT
+    say "Debugging: the robot's serial goes to logs/robot-*.log"
+    "$@"
 }
 
 relay() {
-    say "Arrancando la pasarela del portátil (Ctrl+C para salir)"
-    exec "$PY" "$DEMO/relay/main.py" ${ARGS[@]+"${ARGS[@]}"}
+    say "Starting the laptop relay (Ctrl+C to quit)"
+    local extra=()
+    [ "$MODE" != debug ] || extra=(--debug)
+    run "$PY" "$DEMO/relay/main.py" ${extra[@]+"${extra[@]}"} ${ARGS[@]+"${ARGS[@]}"}
+}
+
+# Demos without a relay: the serial monitor already saves to logs/robot-*.log.
+monitor() {
+    say "$1 Here you'll see what the robot says; it is saved to logs/robot-*.log (Ctrl+C to quit)."
+    exec "$PY" tools/serial_log.py "$FW" ${PORT:+"$PORT"}
 }
 
 case "$(basename "$DEMO")" in
@@ -72,36 +144,53 @@ case "$(basename "$DEMO")" in
         flash_robot "$DEMO/firmware"
         relay ;;
     03-*)
-        if [ "${ARGS[0]:-}" = balizas ]; then
+        if [ "${ARGS[0]:-}" = beacons ]; then
             for n in 1 2 3; do
-                read -r -p "Conecta SOLO la baliza $n (ESP32 DevKit) por USB y pulsa Enter... " _
+                read -r -p "Connect ONLY beacon $n (ESP32 DevKit) over USB and press Enter... " _
                 port="${PORT:-$($PY tools/find_port.py --devkit)}"
-                [ -n "$port" ] || fail "No veo ninguna ESP32 DevKit (chip CP210x o CH34x). ¿Cable de datos? ¿Driver?"
-                say "Subiendo la baliza $n ($port)"
-                ./tools/flash.sh "$DEMO/baliza" --env "baliza$n" "$port" --no-monitor
+                [ -n "$port" ] || fail "I can't see any ESP32 DevKit (CP210x or CH34x chip). Data cable? Driver?"
+                say "Flashing beacon $n ($port)"
+                ./tools/flash.sh "$DEMO/beacon" --env "beacon$n" "$port" --no-monitor
             done
-            say "Balizas listas. Ahora: $DEMO/run.sh"
+            say "Beacons ready. Now: $DEMO/run.sh"
             exit 0
         fi
-        flash_robot "$DEMO/receptor"
-        say "Abriendo el mapa (Ctrl+C para salir). Para calibrar: $PY $DEMO/portatil/posicion.py --calibrar 1"
-        exec "$PY" "$DEMO/portatil/posicion.py" ${ARGS[@]+"${ARGS[@]}"} ;;
+        flash_robot "$DEMO/receiver"
+        say "Opening the map (Ctrl+C to quit). To calibrate: $PY $DEMO/laptop/position.py --calibrate 1"
+        run "$PY" "$DEMO/laptop/position.py" ${ARGS[@]+"${ARGS[@]}"} ;;
     04-*)
         flash_robot "$DEMO/firmware"
-        say "Acerca una tarjeta NFC a la base del robot. Aquí verás lo que lee (Ctrl+C para salir)."
-        exec "$PY" tools/serial_log.py "$DEMO/firmware" ${PORT:+"$PORT"} ;;
-    08-*)
-        flash_robot "$DEMO/firmware"
-        say "Mueve el servo desde la pantalla del robot. Aquí verás lo que dice el robot (Ctrl+C para salir)."
-        exec "$PY" tools/serial_log.py "$DEMO/firmware" ${PORT:+"$PORT"} ;;
-    07-*)
-        [ -n "${GEMINI_API_KEY:-}" ] || say "Sin GEMINI_API_KEY solo funcionan Original, Boceto y Píxel (los filtros con IA usan Gemini)."
-        flash_robot "$DEMO/firmware"
-        relay ;;
+        monitor "Hold an NFC card near the robot's base." ;;
     06-*)
         flash_robot "$DEMO/firmware"
-        say "Apunta un mando al robot y pulsa botones. Aquí verás los códigos (Ctrl+C para salir)."
-        exec "$PY" tools/serial_log.py "$DEMO/firmware" ${PORT:+"$PORT"} ;;
+        monitor "Point a remote control at the robot and press buttons." ;;
+    07-*)
+        [ -n "${GEMINI_API_KEY:-}" ] || [ "$MODE" = flash-only ] || say "Without GEMINI_API_KEY only Original, Sketch and Pixel work (the AI filters use Gemini)."
+        flash_robot "$DEMO/firmware"
+        relay ;;
+    08-*)
+        flash_robot "$DEMO/firmware"
+        monitor "Move the servo from the robot's screen." ;;
+    09-*)
+        flash_robot "$DEMO/firmware"
+        monitor "Choose the module type on the robot's screen." ;;
+    10-*)   # the robot runs demo 02's firmware; only the laptop side changes
+        need_gemini_key
+        flash_robot "demos/02-gemini-voice/firmware"
+        relay ;;
+    11-*)   # no robot here: the firmware goes to the tank's Arduino
+        if [ "${ARGS[0]:-}" = tank ] || [ "$MODE" = flash-only ]; then
+            echo
+            read -r -p "REMOVE the Bluetooth module (HM-10) from the tank, connect the Arduino over USB and press Enter... " _
+            port="${PORT:-$($PY tools/find_port.py --arduino)}"
+            [ -n "$port" ] || fail "I can't see the tank's Arduino on USB. Data cable? Board powered?"
+            say "Flashing the firmware to the tank ($port)"
+            ./tools/flash.sh "$DEMO/tank" "$port" --no-monitor
+            say "Done. Put the Bluetooth module back and switch the tank on. Then: $DEMO/run.sh"
+            exit 0
+        fi
+        say "Drive with the PS4 gamepad (Ctrl+C to quit)"
+        exec "$PY" "$DEMO/laptop/drive.py" ${ARGS[@]+"${ARGS[@]}"} ;;
     *)
-        fail "La demo $DEMO todavía no tiene run.sh" ;;
+        fail "Demo $DEMO doesn't have a run.sh yet" ;;
 esac

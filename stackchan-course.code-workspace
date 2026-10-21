@@ -1,0 +1,23 @@
+{
+  "folders": [
+    { "name": "Stack-chan course", "path": "." },
+    { "name": "01 · VR firmware", "path": "demos/01-vr-cardboard/firmware" },
+    { "name": "02 · voice firmware", "path": "demos/02-gemini-voice/firmware" },
+    { "name": "03 · beacon (ESP32)", "path": "demos/03-espnow-beacons/beacon" },
+    { "name": "03 · receiver (robot)", "path": "demos/03-espnow-beacons/receiver" },
+    { "name": "04 · NFC firmware", "path": "demos/04-nfc/firmware" },
+    { "name": "05 · NFC by voice firmware", "path": "demos/05-nfc-voice/firmware" },
+    { "name": "06 · infrared firmware", "path": "demos/06-infrared/firmware" },
+    { "name": "07 · photo booth firmware", "path": "demos/07-photo-booth/firmware" },
+    { "name": "08 · SG90 servo firmware", "path": "demos/08-servo-sg90/firmware" },
+    { "name": "09 · sensor kit firmware", "path": "demos/09-sensor-kit/firmware" },
+    { "name": "11 · tank firmware (Arduino UNO)", "path": "demos/11-tank/tank" }
+  ],
+  "settings": {
+    "files.exclude": { "**/.pio": true, "**/__pycache__": true },
+    "platformio-ide.useBuiltinPython": true
+  },
+  "extensions": {
+    "recommendations": ["platformio.platformio-ide", "ms-python.python"]
+  }
+}

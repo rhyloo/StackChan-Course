@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Graba el monitor serie del robot en logs/ y traduce los fallos a fichero:línea.
+"""Records the robot's serial monitor to logs/ and translates crashes to file:line.
 
-    .venv/bin/python tools/serial_log.py demos/02-voz-gemini/firmware [puerto]
+    .venv/bin/python tools/serial_log.py demos/02-gemini-voice/firmware [port]
 
-A diferencia del monitor de PlatformIO, no se cierra cuando el robot se
-reinicia (el USB del CoreS3 desaparece un momento): espera y reconecta.
-Cuando el ESP32 falla imprime "Backtrace: 0x4200...:0x3fc9..."; este script
-busca esas direcciones en el firmware compilado (firmware.elf) con addr2line.
+Unlike PlatformIO's monitor, it doesn't close when the robot restarts
+(the CoreS3's USB disappears for a moment): it waits and reconnects.
+When the ESP32 crashes it prints "Backtrace: 0x4200...:0x3fc9..."; this script
+looks those addresses up in the built firmware (firmware.elf) with addr2line.
 """
 import glob
 import os
@@ -23,7 +23,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def find_port():
     for p in list_ports.comports():
-        if p.vid == 0x303A:          # USB nativo de Espressif (CoreS3)
+        if p.vid == 0x303A:          # Espressif native USB (CoreS3)
             return p.device
     ports = [p.device for p in list_ports.comports() if "USB" in p.device or "ACM" in p.device]
     return ports[0] if ports else None
@@ -38,15 +38,15 @@ def decode(line, elf, addr2line):
 
 
 def main():
-    project = sys.argv[1] if len(sys.argv) > 1 else "demos/02-voz-gemini/firmware"
+    project = sys.argv[1] if len(sys.argv) > 1 else "demos/02-gemini-voice/firmware"
     port = sys.argv[2] if len(sys.argv) > 2 else None
     elf = next(iter(glob.glob(os.path.join(ROOT, project, ".pio/build/*/firmware.elf"))), None)
     addr2line = next(iter(glob.glob(os.path.expanduser("~/.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-addr2line"))), None)
     if not elf:
-        print(f"Aviso: no encuentro {project}/.pio/build/*/firmware.elf; compílalo para poder traducir los fallos.")
+        print(f"Warning: can't find {project}/.pio/build/*/firmware.elf; build it so crashes can be translated.")
     os.makedirs(os.path.join(ROOT, "logs"), exist_ok=True)
     path = os.path.join(ROOT, "logs", time.strftime("robot-%Y%m%d-%H%M%S.log"))
-    print(f"Guardando en {path}. Ctrl+C para salir.")
+    print(f"Saving to {path}. Ctrl+C to quit.")
     with open(path, "w", buffering=1) as f:
         def out(text):
             line = time.strftime("%H:%M:%S ") + text
@@ -59,7 +59,7 @@ def main():
                 continue
             try:
                 with serial.Serial(dev, 115200, timeout=0.5) as s:
-                    out(f"--- conectado a {dev}")
+                    out(f"--- connected to {dev}")
                     while True:
                         raw = s.readline()
                         if not raw:
@@ -70,7 +70,7 @@ def main():
                             for l in decode(text, elf, addr2line):
                                 out(l)
             except (serial.SerialException, OSError):
-                out("--- puerto perdido (¿el robot se ha reiniciado?), esperando...")
+                out("--- port lost (did the robot restart?), waiting...")
                 time.sleep(0.5)
 
 

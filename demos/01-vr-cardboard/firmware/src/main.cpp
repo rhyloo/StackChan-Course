@@ -13,7 +13,7 @@
 #if __has_include("wifi_secrets.h")
 #include "wifi_secrets.h"
 #else
-#error "Falta config/wifi_secrets.h: ejecuta ./setup.sh --wifi (o setup.bat -Wifi en Windows)"
+#error "Missing config/wifi_secrets.h: run ./setup.sh --wifi (or setup.bat -Wifi on Windows)"
 #endif
 
 static M5Canvas status(&M5.Display);
@@ -35,24 +35,24 @@ static void drawStatus() {
     status.setCursor(4, 2);
     if (WiFi.status() != WL_CONNECTED) {
         status.setTextColor(TFT_ORANGE);
-        status.printf("WiFi: conectando a %s...", WIFI_SSID);
+        status.printf("WiFi: connecting to %s...", WIFI_SSID);
     } else {
         status.printf("%s  stackchan-%s", WiFi.localIP().toString().c_str(), robotId());
     }
     status.setCursor(4, 16);
     if (!s_cameraOk) {
         status.setTextColor(TFT_RED);
-        status.print("ERROR: camara no detectada");
+        status.print("ERROR: camera not found");
     } else if (st.relayOnline) {
         status.setTextColor(TFT_GREEN);
-        status.printf("Portatil %s  %.1f fps  %u B", st.relayIp, st.fps, (unsigned)st.jpegBytes);
+        status.printf("Laptop %s  %.1f fps  %u B", st.relayIp, st.fps, (unsigned)st.jpegBytes);
     } else {
         status.setTextColor(TFT_YELLOW);
-        status.print("Buscando el portatil (relay)...");
+        status.print("Looking for the laptop (relay)...");
     }
     status.setTextColor(TFT_LIGHTGREY);
     status.setCursor(4, 30);
-    status.printf("Bat %d%%  %s  %s", (int)M5.Power.getBatteryLevel(), linkVideoWanted() ? "video ON" : "video en pausa", st.lastText);
+    status.printf("Bat %d%%  %s  %s", (int)M5.Power.getBatteryLevel(), linkVideoWanted() ? "video ON" : "video paused", st.lastText);
     status.pushSprite(0, 240 - 44);
 }
 
@@ -64,7 +64,7 @@ void setup() {
     cfg.output_power = true;
     M5.begin(cfg);
     Serial.begin(115200);
-    M5.Display.setBrightness(30);   // más brillo calienta la pantalla y gasta batería
+    M5.Display.setBrightness(30);   // more brightness heats the screen and drains the battery
     drawFace();
     status.setColorDepth(16);
     status.createSprite(320, 44);
@@ -87,6 +87,59 @@ void setup() {
 
     servoStartTask();
     M5.Speaker.tone(2000, 80);
+}
+
+// "probe" on the serial port: a guided calibration. Torque off, the screen says how to
+// move the head by hand and every reading goes to the serial tagged with its step.
+struct ProbeStep { const char* text; uint32_t ms; };
+static const ProbeStep PROBE_STEPS[] = {
+    { "Hold the head LEVEL,\nlooking straight ahead", 6000 },
+    { "Tilt the head UP\nas far as it goes", 6000 },
+    { "Tilt the head DOWN\nas far as it goes", 6000 },
+    { "Head LEVEL again,\nfacing the FRONT", 6000 },
+    { "Turn the head SLOWLY\nto the RIGHT:\none full turn", 25000 },
+    { "Turn it SLOWLY back\nto the LEFT:\none full turn", 25000 },
+};
+static constexpr int PROBE_COUNT = sizeof(PROBE_STEPS) / sizeof(PROBE_STEPS[0]);
+static int s_probeStep = -1;          // -1 = not probing
+static uint32_t s_probeStepMs = 0;
+
+static void drawProbeStep(int step, int secondsLeft) {
+    M5.Display.fillScreen(TFT_NAVY);
+    M5.Display.setTextColor(TFT_WHITE, TFT_NAVY);
+    M5.Display.setTextSize(2);
+    M5.Display.setCursor(10, 10);
+    M5.Display.printf("Step %d/%d   %d s\n\n", step + 1, PROBE_COUNT, secondsLeft);
+    M5.Display.setTextColor(TFT_YELLOW, TFT_NAVY);
+    M5.Display.print(PROBE_STEPS[step].text);
+    M5.Display.setTextSize(1);
+}
+
+static void probeLoop(uint32_t now) {
+    static uint32_t lastRead = 0, lastDraw = 0;
+    const ProbeStep& st = PROBE_STEPS[s_probeStep];
+    if (now - s_probeStepMs >= st.ms) {
+        if (++s_probeStep >= PROBE_COUNT) {
+            s_probeStep = -1;
+            servoSetProbe(false);
+            Serial.println("[PROBE] done");
+            drawFace();
+            return;
+        }
+        s_probeStepMs = now;
+        M5.Speaker.tone(1500, 80);
+        lastDraw = 0;
+    }
+    if (now - lastDraw >= 1000) {
+        lastDraw = now;
+        drawProbeStep(s_probeStep, (PROBE_STEPS[s_probeStep].ms - (now - s_probeStepMs) + 999) / 1000);
+    }
+    if (now - lastRead >= 100) {
+        lastRead = now;
+        int p, t;
+        servoProbeRead(&p, &t);
+        Serial.printf("[PROBE] step=%d pan=%d tilt=%d\n", s_probeStep + 1, p, t);
+    }
 }
 
 void loop() {
@@ -122,7 +175,7 @@ void loop() {
     if (pc.brightness >= 0) M5.Display.setBrightness(constrain(pc.brightness, 0, 255));
     if (pc.wifiSleep >= 0) WiFi.setSleep(pc.wifiSleep == 1);
     if (pc.leds[0] >= 0) setBaseLeds(pc.leds[0], pc.leds[1], pc.leds[2]);
-    if (now - lastUi >= 500) {
+    if (now - lastUi >= 500 && s_probeStep < 0) {
         lastUi = now;
         drawStatus();
     }
@@ -140,7 +193,17 @@ void loop() {
                 (unsigned)st.poses, (unsigned)st.sendErrors, (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getFreePsram());
         } else if (line == "home") {
             servoHome();
+        } else if (line.startsWith("wheel ")) {
+            int pwm = 0, ms = 0;
+            sscanf(line.c_str() + 6, "%d %d", &pwm, &ms);
+            servoWheelTest(constrain(pwm, -1000, 1000), constrain(ms, 0, 5000));
+        } else if (line == "probe" && s_probeStep < 0) {
+            servoSetProbe(true);
+            s_probeStep = 0;
+            s_probeStepMs = now;
+            Serial.println("[PROBE] start");
         }
     }
+    if (s_probeStep >= 0) probeLoop(now);
     delay(10);
 }

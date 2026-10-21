@@ -1,0 +1,10 @@
+{
+  "_help": "Position of each beacon in metres (x to the right, y away from you). Measure it with a tape measure. rssi_1m and n are set with: position.py --calibrate ID",
+  "beacons": {
+    "1": [0.0, 0.0],
+    "2": [4.0, 0.0],
+    "3": [2.0, 3.0]
+  },
+  "rssi_1m": -50.0,
+  "n": 2.5
+}

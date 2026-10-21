@@ -1,53 +1,113 @@
-# Lo que hacen los run.bat de cada demo: comprueba que todo esta listo, sube el
-# firmware al robot y arranca lo que la demo necesita en el portatil.
-#   tools\run_demo.ps1 <demo> [-SinFlashear] [-Puerto COM5] [opciones de la pasarela]
-#   tools\run_demo.ps1 03 balizas      # demo 03: flashea las tres balizas
-# Equivale a tools/run_demo.sh (Linux/macOS): si cambias uno, cambia el otro.
-param([Parameter(Mandatory = $true)][string]$Demo, [switch]$SinFlashear, [string]$Puerto,
-      [Parameter(ValueFromRemainingArguments = $true)][string[]]$Resto)
+# What each demo's run.bat does: checks that everything is ready, flashes the
+# firmware to the robot and starts what the demo needs on the laptop.
+#   tools\run_demo.ps1 <demo> [mode] [-Usb COM5] [relay options]
+# Modes:
+#   (none)         flash the firmware and start the demo
+#   -FlashOnly     only build and flash the firmware; it stays in the robot's flash
+#   -DebugLogs     like no mode, but save the robot's serial (logs\robot-*.log)
+#                  and the relay with full detail (logs\relay-*.log)
+#   -NoFlash       start the demo with what the robot already has
+#   tools\run_demo.ps1 03 beacons      # demo 03: flash the three beacons
+# Equivalent to tools/run_demo.sh (Linux/macOS): if you change one, change the other.
+param([Parameter(Mandatory = $true)][string]$Demo, [switch]$NoFlash, [switch]$FlashOnly, [switch]$DebugLogs,
+      [switch]$Help, [string]$Usb, [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest)
 $ErrorActionPreference = "Continue"
 $Root = Split-Path $PSScriptRoot -Parent
 Set-Location $Root
 $Py = Join-Path $Root ".venv\Scripts\python.exe"
-if (-not $Resto) { $Resto = @() }
+if (-not $Rest) { $Rest = @() }
+$Fw = ""   # firmware flashed on the robot (for serial_log.py to decode crashes)
 
 function Say($m) { Write-Host "`n==> $m" -ForegroundColor Cyan }
 function Fail($m) { Write-Host "`n$m" -ForegroundColor Red; exit 1 }
 
 $Dir = Get-ChildItem demos -Directory | Where-Object { $_.Name -like "$($Demo -replace '^demos[\\/]', '')*" } | Select-Object -First 1
-if (-not $Dir) { Fail "No existe la demo '$Demo'. Hay: $((Get-ChildItem demos -Directory).Name -join ' ')" }
+if (-not $Dir) { Fail "Demo '$Demo' does not exist. Available: $((Get-ChildItem demos -Directory).Name -join ' ')" }
 $D = "demos\$($Dir.Name)"
-if (-not (Test-Path $Py)) { Fail "Falta el entorno. Ejecuta primero: setup.bat" }
-if (-not (Test-Path "config\wifi_secrets.h")) { Fail "Falta la Wi-Fi. Ejecuta: setup.bat -Wifi" }
+# -Help / --help: the modes, then the options of the program the demo runs on the laptop.
+if ($Help -or $Rest -contains "--help") {
+    Write-Host "Usage: $D\run.bat [mode] [-Usb PORT] [options]`n"
+    Write-Host "Modes:"
+    Write-Host "  (none)       flash the firmware and start the demo"
+    Write-Host "  -FlashOnly   only build and flash the firmware; it stays on the robot"
+    Write-Host "  -DebugLogs   like no mode, and save logs\robot-*.log (robot serial) and logs\relay-*.log"
+    Write-Host "  -NoFlash     start the demo with what the robot already has"
+    Write-Host "  -Usb PORT    USB port of the board (default: found automatically)"
+    Write-Host "  -Help        show this help"
+    $laptop = $null
+    switch -Wildcard ($Dir.Name) {
+        "01-*" { $laptop = "$D\relay\main.py" } "02-*" { $laptop = "$D\relay\main.py" } "05-*" { $laptop = "$D\relay\main.py" }
+        "07-*" { $laptop = "$D\relay\main.py" } "10-*" { $laptop = "$D\relay\main.py" }
+        "03-*" { $laptop = "$D\laptop\position.py"; Write-Host "`nAlso:`n  $D\run.bat beacons   flash the three ESP32 beacons, one after another" }
+        "11-*" { $laptop = "$D\laptop\drive.py"
+                 Write-Host "`nAlso:`n  $D\run.bat tank      flash the tank's Arduino (remove the HM-10 first)"
+                 Write-Host "Here -FlashOnly is the same as `"tank`"; -DebugLogs and -NoFlash do nothing." }
+    }
+    if (-not $laptop) { Write-Host "`nThis demo has nothing to run on the laptop: it shows the robot's serial output." }
+    elseif (Test-Path $Py) { Write-Host "`nAny other option goes to ${laptop}:`n"; & $Py $laptop --help }
+    exit 0
+}
+if (-not (Test-Path $Py)) { Fail "The environment is missing. Run first: setup.bat" }
+if (-not (Test-Path "config\wifi_secrets.h")) { Fail "The Wi-Fi settings are missing. Run: setup.bat -Wifi" }
+if ($FlashOnly -and $NoFlash) { Fail "-FlashOnly and -NoFlash don't go together." }
 
 function Need-GeminiKey {
+    if ($FlashOnly) { return }
     if (-not $env:GEMINI_API_KEY) {
-        Fail ("Esta demo usa Gemini y falta la clave. Creala gratis en https://aistudio.google.com/apikey y ejecuta:`n" +
-              "    `$env:GEMINI_API_KEY=`"tu-clave`"`n" +
-              "(para no repetirlo: setx GEMINI_API_KEY `"tu-clave`" y abre otra terminal)")
+        Fail ("This demo uses Gemini and the key is missing. Create one for free at https://aistudio.google.com/apikey and run:`n" +
+              "    `$env:GEMINI_API_KEY=`"your-key`"`n" +
+              "(to avoid repeating it: setx GEMINI_API_KEY `"your-key`" and open a new terminal)")
     }
 }
 
+# With -FlashOnly it stops here.
 function Flash-Robot($fw) {
-    if ($SinFlashear) { Say "Sin flashear (-SinFlashear): uso lo que ya tiene el robot"; return }
-    $port = $Puerto
-    if (-not $port) { $port = (& $Py tools\find_port.py) }
-    if (-not $port) {
-        Fail ("No encuentro el robot por USB.`n- Conectalo con un cable USB-C de datos (algunos solo cargan).`n" +
-              "- Si sigue sin aparecer, manten pulsado RST unos 3 s (LED verde) y repite.")
+    $script:Fw = $fw
+    if ($NoFlash) { Say "Not flashing (-NoFlash): using what the robot already has"; return }
+    $dev = $Usb
+    if (-not $dev) { $dev = (& $Py tools\find_port.py) }
+    if (-not $dev) {
+        Fail ("I can't find the robot on USB.`n- Connect it with a USB-C data cable (some cables only charge).`n" +
+              "- If it still doesn't show up, hold RST for about 3 s (green LED) and try again.")
     }
-    Say "Compilando y subiendo $fw al robot ($port). La primera vez tarda unos minutos..."
-    & powershell -NoProfile -ExecutionPolicy Bypass -File tools\flash.ps1 $fw $port -NoMonitor
+    Say "Building and flashing $fw to the robot ($dev). The first time takes a few minutes..."
+    & powershell -NoProfile -ExecutionPolicy Bypass -File tools\flash.ps1 $fw $dev -NoMonitor
     if ($LASTEXITCODE) {
-        Fail ("No se pudo subir el firmware.`n- Tienes abierto un monitor serie? Cierralo: ocupa el puerto.`n" +
-              "- Si no, manten pulsado RST unos 3 s (LED verde, modo descarga) y repite.")
+        Fail ("Could not flash the firmware.`n- Do you have a serial monitor open? Close it: it holds the port.`n" +
+              "- If not, hold RST for about 3 s (green LED, download mode) and try again.")
     }
-    Say "Firmware subido. El robot se reinicia (unos segundos)."
+    if ($FlashOnly) {
+        Say "Firmware flashed. It stays on the robot even if you unplug it or switch it off."
+        if (Test-Path "$D\relay") { Write-Host "This demo needs the laptop relay: $D\run.bat -NoFlash" }
+        exit 0
+    }
+    Say "Firmware flashed. The robot restarts (a few seconds)."
+}
+
+# Starts the laptop side. With -DebugLogs the robot's serial goes to logs\robot-*.log in the background.
+function Run-Laptop([string[]]$a) {
+    $bg = $null
+    if ($DebugLogs -and $Fw) {
+        $sa = @("tools\serial_log.py", $Fw); if ($Usb) { $sa += $Usb }
+        $bg = Start-Process -FilePath $Py -ArgumentList $sa -WindowStyle Hidden -PassThru
+        Say "Debugging: the robot's serial goes to logs\robot-*.log"
+    }
+    try { & $Py @a; $code = $LASTEXITCODE }
+    finally { if ($bg) { Stop-Process -Id $bg.Id -ErrorAction SilentlyContinue } }
+    exit $code
 }
 
 function Start-Relay {
-    Say "Arrancando la pasarela del portatil (Ctrl+C para salir)"
-    & $Py "$D\relay\main.py" @Resto
+    Say "Starting the laptop relay (Ctrl+C to quit)"
+    $a = @("$D\relay\main.py"); if ($DebugLogs) { $a += "--debug" }
+    Run-Laptop ($a + $Rest)
+}
+
+# Demos without a relay: the serial monitor already saves to logs\robot-*.log.
+function Monitor($m) {
+    Say "$m Here you'll see what the robot says; it is saved to logs\robot-*.log (Ctrl+C to quit)."
+    $a = @("tools\serial_log.py", $Fw); if ($Usb) { $a += $Usb }
+    & $Py @a
     exit $LASTEXITCODE
 }
 
@@ -56,48 +116,48 @@ switch -Wildcard ($Dir.Name) {
     "02-*" { Need-GeminiKey; Flash-Robot "$D\firmware"; Start-Relay }
     "05-*" { Need-GeminiKey; Flash-Robot "$D\firmware"; Start-Relay }
     "03-*" {
-        if ($Resto.Count -gt 0 -and $Resto[0] -eq "balizas") {
+        if ($Rest.Count -gt 0 -and $Rest[0] -eq "beacons") {
             foreach ($n in 1..3) {
-                Read-Host "Conecta SOLO la baliza $n (ESP32 DevKit) por USB y pulsa Enter"
-                $port = $Puerto
-                if (-not $port) { $port = (& $Py tools\find_port.py --devkit) }
-                if (-not $port) { Fail "No veo ninguna ESP32 DevKit (CP210x o CH34x). Cable de datos? Driver?" }
-                Say "Subiendo la baliza $n ($port)"
-                & powershell -NoProfile -ExecutionPolicy Bypass -File tools\flash.ps1 "$D\baliza" $port -Entorno "baliza$n" -NoMonitor
+                Read-Host "Connect ONLY beacon $n (ESP32 DevKit) over USB and press Enter"
+                $dev = $Usb
+                if (-not $dev) { $dev = (& $Py tools\find_port.py --devkit) }
+                if (-not $dev) { Fail "I can't see any ESP32 DevKit (CP210x or CH34x). Data cable? Driver?" }
+                Say "Flashing beacon $n ($dev)"
+                & powershell -NoProfile -ExecutionPolicy Bypass -File tools\flash.ps1 "$D\beacon" $dev -Env "beacon$n" -NoMonitor
                 if ($LASTEXITCODE) { exit $LASTEXITCODE }
             }
-            Say "Balizas listas. Ahora: $D\run.bat"
+            Say "Beacons ready. Now: $D\run.bat"
             exit 0
         }
-        Flash-Robot "$D\receptor"
-        Say "Abriendo el mapa (Ctrl+C para salir). Para calibrar: $Py $D\portatil\posicion.py --calibrar 1"
-        & $Py "$D\portatil\posicion.py" @Resto
-        exit $LASTEXITCODE
+        Flash-Robot "$D\receiver"
+        Say "Opening the map (Ctrl+C to quit). To calibrate: $Py $D\laptop\position.py --calibrate 1"
+        Run-Laptop (@("$D\laptop\position.py") + $Rest)
     }
-    "04-*" {
-        Flash-Robot "$D\firmware"
-        Say "Acerca una tarjeta NFC a la base del robot. Aqui veras lo que lee (Ctrl+C para salir)."
-        $a = @("tools\serial_log.py", "$D\firmware"); if ($Puerto) { $a += $Puerto }
-        & $Py @a
-        exit $LASTEXITCODE
-    }
-    "08-*" {
-        Flash-Robot "$D\firmware"
-        Say "Mueve el servo desde la pantalla del robot (Ctrl+C para salir)."
-        $a = @("tools\serial_log.py", "$D\firmware"); if ($Puerto) { $a += $Puerto }
-        & $Py @a
-        exit $LASTEXITCODE
-    }
+    "04-*" { Flash-Robot "$D\firmware"; Monitor "Hold an NFC card near the robot's base." }
+    "06-*" { Flash-Robot "$D\firmware"; Monitor "Point a remote control at the robot and press buttons." }
     "07-*" {
-        if (-not $env:GEMINI_API_KEY) { Say "Sin GEMINI_API_KEY solo funcionan Original, Boceto y Pixel (los filtros con IA usan Gemini)." }
+        if (-not $env:GEMINI_API_KEY -and -not $FlashOnly) { Say "Without GEMINI_API_KEY only Original, Sketch and Pixel work (the AI filters use Gemini)." }
         Flash-Robot "$D\firmware"; Start-Relay
     }
-    "06-*" {
-        Flash-Robot "$D\firmware"
-        Say "Apunta un mando al robot y pulsa botones. Aqui veras los codigos (Ctrl+C para salir)."
-        $a = @("tools\serial_log.py", "$D\firmware"); if ($Puerto) { $a += $Puerto }
-        & $Py @a
+    "08-*" { Flash-Robot "$D\firmware"; Monitor "Move the servo from the robot's screen." }
+    "09-*" { Flash-Robot "$D\firmware"; Monitor "Choose the module type on the robot's screen." }
+    "10-*" { Need-GeminiKey; Flash-Robot "demos\02-gemini-voice\firmware"; Start-Relay }
+    "11-*" {
+        # no robot here: the firmware goes to the tank's Arduino
+        if ($FlashOnly -or ($Rest.Count -gt 0 -and $Rest[0] -eq "tank")) {
+            Read-Host "REMOVE the Bluetooth module (HM-10) from the tank, connect the Arduino over USB and press Enter"
+            $dev = $Usb
+            if (-not $dev) { $dev = (& $Py tools\find_port.py --arduino) }
+            if (-not $dev) { Fail "I can't see the tank's Arduino on USB. Data cable? Board powered?" }
+            Say "Flashing the firmware to the tank ($dev)"
+            & powershell -NoProfile -ExecutionPolicy Bypass -File tools\flash.ps1 "$D\tank" $dev -NoMonitor
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+            Say "Done. Put the Bluetooth module back and switch the tank on. Then: $D\run.bat"
+            exit 0
+        }
+        Say "Drive with the PS4 gamepad (Ctrl+C to quit)"
+        & $Py "$D\laptop\drive.py" @Rest
         exit $LASTEXITCODE
     }
-    default { Fail "La demo $D todavia no tiene run.bat" }
+    default { Fail "Demo $D doesn't have a run.bat yet" }
 }
