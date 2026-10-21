@@ -52,7 +52,7 @@ Modes:
 EOF
     case "$(basename "$DEMO")" in
         03-*) printf '\nAlso:\n  %s/run.sh beacons   flash the three ESP32 beacons, one after another\n' "$DEMO" ;;
-        11-*) printf '\nAlso:\n  %s/run.sh tank      flash the tank'"'"'s Arduino (remove the HM-10 first)\nHere --flash-only is the same as "tank"; --debug and --no-flash do nothing.\n' "$DEMO" ;;
+        11-*) printf '\nAlso:\n  %s/run.sh tank      flash the tank'"'"'s Arduino (remove the HM-10 first)\nThe robot (optional, for the L2/R2 sounds) gets demo 02'"'"'s firmware; --debug does nothing here.\n' "$DEMO" ;;
     esac
     if [ -z "$laptop" ]; then
         printf '\nThis demo has nothing to run on the laptop: it shows the robot'"'"'s serial output.\n'
@@ -180,8 +180,8 @@ case "$(basename "$DEMO")" in
         need_gemini_key
         flash_robot "demos/02-gemini-voice/firmware"
         relay ;;
-    11-*)   # no robot here: the firmware goes to the tank's Arduino
-        if [ "${ARGS[0]:-}" = tank ] || [ "$MODE" = flash-only ]; then
+    11-*)   # "run.sh tank": the tank's Arduino. Otherwise the robot (optional: the L2/R2 sounds) gets demo 02's firmware.
+        if [ "${ARGS[0]:-}" = tank ]; then
             echo
             read -r -p "REMOVE the Bluetooth module (HM-10) from the tank, connect the Arduino over USB and press Enter... " _
             port="${PORT:-$($PY tools/find_port.py --arduino)}"
@@ -191,7 +191,13 @@ case "$(basename "$DEMO")" in
             say "Done. Put the Bluetooth module back and switch the tank on. Then: $DEMO/run.sh"
             exit 0
         fi
-        say "Drive with the PS4 gamepad (Ctrl+C to quit)"
+        if [ "$FLASH" = 1 ] && [ -z "$PORT" ] && [ -z "$($PY tools/find_port.py)" ]; then
+            [ "$MODE" != flash-only ] || fail "I can't find the robot on USB."
+            say "No robot on USB: driving without it. The L2/R2 sounds need it with demo 02's firmware."
+            FLASH=0
+        fi
+        [ "$FLASH" = 0 ] || flash_robot "demos/02-gemini-voice/firmware"
+        say "Drive with the PS4 gamepad; L2 horn, R2 blaster on the robot (Ctrl+C to quit)"
         exec "$PY" "$DEMO/laptop/drive.py" ${ARGS[@]+"${ARGS[@]}"} ;;
     *)
         fail "Demo $DEMO doesn't have a run.sh yet" ;;

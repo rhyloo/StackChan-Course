@@ -35,6 +35,18 @@ def pew():
     return _pcm(wave * np.exp(-t * 9))
 
 
+def blaster():
+    """Star Wars style blaster: a bright sweep falling fast (2600 -> 180 Hz in 0.3 s),
+    with a metallic ring and a short crack at the start."""
+    t = _t(0.3)
+    f = 2600 * (180 / 2600) ** ((t / t[-1]) ** 0.6)  # falls fast first, then slower
+    phase = 2 * np.pi * np.cumsum(f) / RATE
+    saw = 2 * ((phase / (2 * np.pi)) % 1) - 1
+    wave = (0.6 * saw + 0.4 * np.sin(3 * phase)) * (0.55 + 0.45 * np.sin(2 * np.pi * 55 * t))
+    crack = np.random.default_rng(3).standard_normal(len(t)) * np.exp(-t * 80) * 0.3
+    return _pcm((wave + crack) * np.exp(-t * 7))
+
+
 def horn():
     """A "meep-meep!": two honks of a two-note horn."""
     parts = []

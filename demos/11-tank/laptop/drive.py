@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """Drive the Keyestudio tank with the PS4 gamepad (paired with the laptop).
+The gamepad only drives the tank; L2 and R2 play sounds on the Stack-chan's speaker.
 
     demos/11-tank/run.sh               # or: .venv/bin/python demos/11-tank/laptop/drive.py
     ... --tank BT05                    # if there are several Bluetooth modules nearby: its name or MAC
+    ... --robot stackchan-4F48         # if there are several robots: its name or IP
 
     left stick        drive: forward/back and turn (the more you tilt it, the faster)
     D-pad             forward, back and spin on the spot, at a fixed speed
     R1 (hold)         full speed
     ✕                 stop
+    L2                horn, on the Stack-chan's speaker
+    R2                blaster shot (Star Wars style), on the Stack-chan's speaker
 """
 import argparse
 import math
@@ -21,15 +25,21 @@ os.environ.setdefault("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1")
 import pygame  # noqa: E402
 from pygame._sdl2 import controller as sdl_gamepad  # noqa: E402
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(HERE, "..", "..", "10-voice-gamepad", "relay"))
+import sounds  # noqa: E402  (demo 10's sound effects)
+from speaker import RobotSpeaker  # noqa: E402
 from tank import Tank  # noqa: E402
 
 PERIOD = 0.04
 DEAD_ZONE = 0.15
 NORMAL = 0.6              # fraction of full speed without R1: easier to control
+FORWARD = -1              # this tank went backwards when asked forward (turning was fine): flip only forward/back
+TRIGGER = 16000           # L2/R2 pressed past this (0..32767)
 DPAD = {                  # (left, right) as a fraction of the speed
-    pygame.CONTROLLER_BUTTON_DPAD_UP: (1, 1),
-    pygame.CONTROLLER_BUTTON_DPAD_DOWN: (-1, -1),
+    pygame.CONTROLLER_BUTTON_DPAD_UP: (FORWARD, FORWARD),
+    pygame.CONTROLLER_BUTTON_DPAD_DOWN: (-FORWARD, -FORWARD),
     pygame.CONTROLLER_BUTTON_DPAD_LEFT: (-1, 1),
     pygame.CONTROLLER_BUTTON_DPAD_RIGHT: (1, -1),
 }
@@ -47,7 +57,7 @@ def tracks(pad):
     for button, value in DPAD.items():
         if pad.get_button(button):
             return value
-    forward = -axis(pad.get_axis(pygame.CONTROLLER_AXIS_LEFTY))   # stick up = forward
+    forward = -axis(pad.get_axis(pygame.CONTROLLER_AXIS_LEFTY)) * FORWARD   # stick up = forward
     turn = axis(pad.get_axis(pygame.CONTROLLER_AXIS_LEFTX))
     left, right = forward + turn, forward - turn                  # "arcade": a single stick
     biggest = max(1.0, abs(left), abs(right))
@@ -57,9 +67,14 @@ def tracks(pad):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--tank", help="Bluetooth name or MAC of the tank's HM-10 module")
+    ap.add_argument("--robot", help="Stack-chan for the sounds: its name (stackchan-4F48) or IP; default the first one")
+    ap.add_argument("--volume", type=int, default=120, help="robot speaker volume, 0-255 (default 120: louder can brown out the robot)")
     args = ap.parse_args()
 
     tank = Tank(args.tank, log=lambda m: print(f"\n{m}"))
+    speaker = RobotSpeaker(args.robot, max(0, min(255, args.volume)))
+    horn, blaster = sounds.horn(), sounds.blaster()
+    pressed = {}              # trigger -> it was pressed on the last loop (to act on the press only)
     pygame.init()
     sdl_gamepad.init()
     pad = None
@@ -86,8 +101,15 @@ def main():
                 left, right = tracks(pad)
             k = 255 * (1.0 if pad.get_button(pygame.CONTROLLER_BUTTON_RIGHTSHOULDER) else NORMAL)
             tank.move(left * k, right * k)
+            for trigger, sound in ((pygame.CONTROLLER_AXIS_TRIGGERLEFT, horn),
+                                   (pygame.CONTROLLER_AXIS_TRIGGERRIGHT, blaster)):
+                now = pad.get_axis(trigger) > TRIGGER
+                if now and not pressed.get(trigger):
+                    speaker.play(sound)
+                pressed[trigger] = now
             status = tank.device if tank.connected else "looking for the tank..."
-            print(f"\r  left {tank.left:+4d}  right {tank.right:+4d}   {status}      ", end="", flush=True)
+            robot = speaker.robot.name if speaker.online else "no robot (sounds off)"
+            print(f"\r  left {tank.left:+4d}  right {tank.right:+4d}   {status} | {robot}      ", end="", flush=True)
             time.sleep(PERIOD)
     except KeyboardInterrupt:
         pass

@@ -44,7 +44,7 @@ if ($Help -or $Rest -contains "--help") {
         "03-*" { $laptop = "$D\laptop\position.py"; Write-Host "`nAlso:`n  $D\run.bat beacons   flash the three ESP32 beacons, one after another" }
         "11-*" { $laptop = "$D\laptop\drive.py"
                  Write-Host "`nAlso:`n  $D\run.bat tank      flash the tank's Arduino (remove the HM-10 first)"
-                 Write-Host "Here -FlashOnly is the same as `"tank`"; -DebugLogs and -NoFlash do nothing." }
+                 Write-Host "The robot (optional, for the L2/R2 sounds) gets demo 02's firmware; -DebugLogs does nothing here." }
     }
     if (-not $laptop) { Write-Host "`nThis demo has nothing to run on the laptop: it shows the robot's serial output." }
     elseif (Test-Path $Py) { Write-Host "`nAny other option goes to ${laptop}:`n"; & $Py $laptop --help }
@@ -147,8 +147,8 @@ switch -Wildcard ($Dir.Name) {
     "09-*" { Flash-Robot "$D\firmware"; Monitor "Choose the module type on the robot's screen." }
     "10-*" { Need-GeminiKey; Flash-Robot "demos\02-gemini-voice\firmware"; Start-Relay }
     "11-*" {
-        # no robot here: the firmware goes to the tank's Arduino
-        if ($FlashOnly -or ($Rest.Count -gt 0 -and $Rest[0] -eq "tank")) {
+        # "run.bat tank": the tank's Arduino. Otherwise the robot (optional: the L2/R2 sounds) gets demo 02's firmware.
+        if ($Rest.Count -gt 0 -and $Rest[0] -eq "tank") {
             Read-Host "REMOVE the Bluetooth module (HM-10) from the tank, connect the Arduino over USB and press Enter"
             $dev = $Usb
             if (-not $dev) { $dev = (& $Py tools\find_port.py --arduino) }
@@ -159,7 +159,14 @@ switch -Wildcard ($Dir.Name) {
             Say "Done. Put the Bluetooth module back and switch the tank on. Then: $D\run.bat"
             exit 0
         }
-        Say "Drive with the PS4 gamepad (Ctrl+C to quit)"
+        $skip = $NoFlash
+        if (-not $skip -and -not $Usb -and -not (& $Py tools\find_port.py)) {
+            if ($FlashOnly) { Fail "I can't find the robot on USB." }
+            Say "No robot on USB: driving without it. The L2/R2 sounds need it with demo 02's firmware."
+            $skip = $true
+        }
+        if (-not $skip) { Flash-Robot "demos\02-gemini-voice\firmware" }
+        Say "Drive with the PS4 gamepad; L2 horn, R2 blaster on the robot (Ctrl+C to quit)"
         & $Py "$D\laptop\drive.py" @Rest
         exit $LASTEXITCODE
     }
