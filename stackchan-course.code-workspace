@@ -12,7 +12,8 @@
     { "name": "07 · photo booth firmware", "path": "demos/07-photo-booth/firmware" },
     { "name": "08 · SG90 servo firmware", "path": "demos/08-servo-sg90/firmware" },
     { "name": "09 · sensor kit firmware", "path": "demos/09-sensor-kit/firmware" },
-    { "name": "11 · tank firmware (Arduino UNO)", "path": "demos/11-tank/tank" }
+    { "name": "11 · tank firmware (Arduino UNO)", "path": "demos/11-tank/tank" },
+    { "name": "12 · mini TV firmware", "path": "demos/12-mini-tv/firmware" }
   ],
   "settings": {
     "files.exclude": { "**/.pio": true, "**/__pycache__": true },

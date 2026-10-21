@@ -23,6 +23,7 @@ Repository of a course for programming Stack-chan, an M5Stack CoreS3 (ESP32-S3) 
 | `demos/09-sensor-kit/` | KY-0xx modules on PORT.B (G9/G8): digital, ADC, DHT11, DS18B20, encoder, joystick and outputs. Inputs go through a 10k/20k divider because the Grove port gives 5 V. |
 | `demos/10-voice-gamepad/` | Relay only: demo 02's voice plus a PS4 gamepad paired with the laptop, read with pygame (`relay/gamepad.py`). The robot runs demo 02's firmware. Pairing: `tools/pair_gamepad.sh`. |
 | `demos/11-tank/` | Keyestudio KS0428 tank: Arduino UNO firmware (`tank/`, `M<left>,<right>` commands with a 400 ms watchdog) and `laptop/tank.py` (BLE to the HM-10 with bleak). To flash it you must remove the HM-10. |
+| `demos/12-mini-tv/` | Mini TV: `laptop/tv.py` converts videos with ffmpeg to `.tv` (320x240 JPEG frames + PCM audio, format in `main.cpp`) and uploads them over Wi-Fi (HTTP, `stackchan-tv.local`) to `/tv` on the microSD. The robot plays them as channels; the audio sets the pace. |
 | `lib/StackChanHW/` | Shared C++: servos, LEDs, INA226, camera. Limits and calibration in `stackchan_limits.h`. |
 | `lib/StackChanLink/` | Shared C++: UDP link robot ↔ relay and its extension points for the demos. |
 | `lib/python/stackchan/` | Shared Python: protocol and base relay. Each demo provides `hooks.py` and `processing.py`. |
@@ -43,7 +44,7 @@ demos/02-gemini-voice/server.sh --debug                   # relay; --debug saves
 .venv/bin/python tools/serial_log.py demos/02-gemini-voice/firmware   # robot serial → logs/robot-*.log
 ```
 
-`run.sh` modes: `--flash-only`, `--debug`, `--no-flash`, plus `--usb PORT` and `--help` (Windows `run.bat`: `-FlashOnly`, `-DebugLogs`, `-NoFlash`, `-Usb`). Sub-commands: `demos/03-espnow-beacons/run.sh beacons`, `demos/11-tank/run.sh tank`.
+`run.sh` modes: `--flash-only`, `--debug`, `--no-flash`, plus `--usb PORT` and `--help` (Windows `run.bat`: `-FlashOnly`, `-DebugLogs`, `-NoFlash`, `-Usb`). Sub-commands: `demos/03-espnow-beacons/run.sh beacons`, `demos/11-tank/run.sh tank`, `demos/12-mini-tv/run.sh sample | add VIDEO | list | remove NAME`.
 
 Pinned platform: `espressif32@7.1.2` (Arduino-ESP32 2.0.17, ESP-IDF 4.4.7), M5Unified 0.2.21.
 

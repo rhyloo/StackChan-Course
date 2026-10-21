@@ -16,6 +16,7 @@ Demos to learn to program [Stack-chan](docs/ROBOT.md), an M5Stack desktop robot 
 | [09 · Sensor kit](demos/09-sensor-kit/) | The KY-0xx modules of the 37-sensor kit on PORT.B: digital, analog with a graph, DHT11, DS18B20, encoder, joystick and outputs (LEDs, relay, buzzer). | Robot, the kit and 10 and 20 kΩ resistors for the dividers. |
 | [10 · Voice + gamepad](demos/10-voice-gamepad/) | Demo 02 (Gemini voice) with the head moved by a PS4 gamepad paired with the laptop over Bluetooth, no phone needed. | Robot, laptop with Bluetooth, PS4 gamepad and a [Gemini key](https://aistudio.google.com/apikey). |
 | [11 · Tank](demos/11-tank/) | You drive the Keyestudio KS0428 tank (Arduino UNO + HM-10) with the PS4 gamepad from the laptop, over Bluetooth LE. | KS0428 tank, laptop with Bluetooth and PS4 gamepad. |
+| [12 · Mini TV](demos/12-mini-tv/) | The robot becomes a tiny old TV: it plays videos from its microSD card, and you tap the screen to change the channel. The laptop converts any video and sends it over Wi-Fi. | Robot with a microSD card (FAT32), laptop with ffmpeg. |
 
 ```
 demos/                 one folder per demo: firmware, laptop code and README

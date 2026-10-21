@@ -12,5 +12,7 @@ relay/recordings/
 *.bin
 demos/*/relay/photos/
 photos/
+demos/12-mini-tv/videos/
+*.tv
 logs/
 CLAUDE.local.md

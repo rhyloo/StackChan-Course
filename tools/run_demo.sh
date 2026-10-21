@@ -38,6 +38,7 @@ show_help() {
         01-*|02-*|02.1-*|05-*|07-*|10-*) laptop="$DEMO/relay/main.py" ;;
         03-*) laptop="$DEMO/laptop/position.py" ;;
         11-*) laptop="$DEMO/laptop/drive.py" ;;
+        12-*) laptop="$DEMO/laptop/tv.py" ;;
     esac
     cat <<EOF
 Usage: $DEMO/run.sh [mode] [--usb PORT] [options]
@@ -52,6 +53,7 @@ Modes:
 EOF
     case "$(basename "$DEMO")" in
         03-*) printf '\nAlso:\n  %s/run.sh beacons   flash the three ESP32 beacons, one after another\n' "$DEMO" ;;
+        12-*) printf '\nAlso, without flashing:\n  %s/run.sh sample | add VIDEO | list | remove NAME\n' "$DEMO" ;;
         11-*) printf '\nAlso:\n  %s/run.sh tank      flash the tank'"'"'s Arduino (remove the HM-10 first)\nThe robot (optional, for the L2/R2 sounds) gets demo 02'"'"'s firmware; --debug does nothing here.\n' "$DEMO" ;;
     esac
     if [ -z "$laptop" ]; then
@@ -199,6 +201,11 @@ case "$(basename "$DEMO")" in
         [ "$FLASH" = 0 ] || flash_robot "demos/02-gemini-voice/firmware"
         say "Drive with the PS4 gamepad; L2 horn, R2 blaster on the robot (Ctrl+C to quit)"
         exec "$PY" "$DEMO/laptop/drive.py" ${ARGS[@]+"${ARGS[@]}"} ;;
+    12-*)   # "run.sh sample", "run.sh add VIDEO", "run.sh list"...: only the laptop side, without flashing
+        if [ ${#ARGS[@]} -gt 0 ]; then run "$PY" "$DEMO/laptop/tv.py" "${ARGS[@]}"; fi
+        flash_robot "$DEMO/firmware"
+        say "Looking for the robot on the Wi-Fi to send it the videos (Ctrl+C to quit)"
+        run "$PY" "$DEMO/laptop/tv.py" ;;
     *)
         fail "Demo $DEMO doesn't have a run.sh yet" ;;
 esac

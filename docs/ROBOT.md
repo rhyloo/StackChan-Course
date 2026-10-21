@@ -39,7 +39,7 @@ Source: [M5Stack_CoreS3_User_Manual.pdf](hardware/manuals/M5Stack_CoreS3_User_Ma
 | Other sensors | LTR-553 light and proximity, above the camera |
 | Audio | 2 microphones (ES7210 codec) and a 1 W speaker (AW88298 amplifier) |
 | Clock | BM8563 RTC |
-| Storage | microSD slot, up to 16 GB |
+| Storage | microSD slot, FAT32: 16 GB according to M5Stack; a 32 GB card works (demo 12, 2026-10-22) |
 | Power | AXP2101 PMIC (rails, charging and battery level); AW9523B I/O expander (resets and enables) |
 | USB | **Native** USB-C of the ESP32-S3 (VID:PID `303A:1001`). There is no USB-serial chip, so no CP210x or CH34x drivers are needed. |
 | Size | 54 × 54 × 15.5 mm |
