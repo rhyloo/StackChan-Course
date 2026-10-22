@@ -29,5 +29,9 @@ static constexpr float STEPS_PER_RAD   = 183.3465f;
 static constexpr int   PAN_RAW_MIN = 20,  PAN_RAW_MAX = 1003;   // = PAN_MIN / PAN_MAX
 static constexpr int   TILT_RAW_MIN = 598, TILT_RAW_MAX = 854;   // = TILT_MIN / TILT_MAX
 static constexpr uint32_t SERVO_PERIOD_MS = 40;   // 25 Hz servo loop
+// After this long without moving, both servos are released (torque off): they don't buzz,
+// heat or draw current, and the head can be turned by hand. The next move takes the head
+// from wherever it is then. 0 = always hold.
+static constexpr uint32_t SERVO_RELEASE_MS = 3000;
 static constexpr int   PAN_MAX_STEP  = 12;        // per tick: ~94 deg/s
 static constexpr int   TILT_MAX_STEP = 6;         // per tick: ~47 deg/s

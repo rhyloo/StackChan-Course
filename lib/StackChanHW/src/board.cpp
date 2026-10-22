@@ -299,7 +299,24 @@ static void panCross(int dir) {
 // The only task that writes to the servo UART, so commands never interleave.
 static void servoTask(void*) {
     TickType_t last = xTaskGetTickCount();
-    uint32_t lastTorqueOnMs = 0;
+    uint32_t lastTorqueOnMs = 0, lastMoveMs = millis();
+    bool released = false;   // torque off after SERVO_RELEASE_MS still
+
+    // Back from released: the head may have been turned by hand, so start from where it
+    // really is (goal = present position before the torque comes on: no jump).
+    auto engage = [&]() {
+        if (!released) return;
+        int p, t;
+        if (scsRead16(1, 0x38, &p) && p >= PAN_RAW_MIN && p <= PAN_RAW_MAX) s_rawPan = p;
+        if (scsRead16(2, 0x38, &t) && t >= TILT_RAW_MIN - 40 && t <= TILT_RAW_MAX + 40)
+            s_rawTilt = clampi(t, TILT_RAW_MIN, TILT_RAW_MAX);
+        scsWritePos(1, s_rawPan, 0);
+        scsWritePos(2, s_rawTilt, 0);
+        scsTorque(1, true);
+        scsTorque(2, true);
+        released = false;
+        lastTorqueOnMs = lastMoveMs = millis();
+    };
     for (;;) {
         vTaskDelayUntil(&last, pdMS_TO_TICKS(SERVO_PERIOD_MS));
 
@@ -351,6 +368,8 @@ static void servoTask(void*) {
             }
             scsTorque(1, !probing);
             scsTorque(2, !probing);
+            released = false;
+            lastMoveMs = millis();
         }
         if (probing) {
             uint8_t b[2];
@@ -362,11 +381,18 @@ static void servoTask(void*) {
         int tq = s_torqueRequest;
         if (tq >= 0) {
             s_torqueRequest = -1;
-            scsTorque(1, tq == 1);
-            scsTorque(2, tq == 1);
+            if (tq == 1) {
+                engage();
+            } else {
+                scsTorque(1, false);
+                scsTorque(2, false);
+                released = true;
+            }
         }
         if (s_homeRequest) {
             s_homeRequest = false;
+            engage();
+            lastMoveMs = millis();
             portENTER_CRITICAL(&s_mux);
             s_targetPan = s_targetTilt = 0;
             portEXIT_CRITICAL(&s_mux);
@@ -393,10 +419,15 @@ static void servoTask(void*) {
             panGoal = wrap2Pi(tp - PAN_MAX) <= wrap2Pi(PAN_MIN - tp) ? PAN_MAX : PAN_MIN;
         const float d = wrapPi(tp - cur);
         if (fabsf(d) < (float)M_PI - 0.3f && ((d > 0 && panGoal < cur - 0.05f) || (d < 0 && panGoal > cur + 0.05f))) {
+            engage();
             panCross(d > 0 ? 1 : -1);
+            lastMoveMs = millis();
             last = xTaskGetTickCount();
             continue;
         }
+
+        // A move asked for while released: torque back on, from where the head is now.
+        if (released && (abs(panToRaw(panGoal) - s_rawPan) >= 2 || abs(tiltToRaw(tt) - s_rawTilt) >= 2)) engage();
 
         // Slew-rate limit: big jumps make current spikes that brown out the base.
         int dp = clampi(panToRaw(panGoal) - s_rawPan, -PAN_MAX_STEP, PAN_MAX_STEP);
@@ -405,7 +436,7 @@ static void servoTask(void*) {
         // The overload protection (80 % of stall torque for 2 s) switches a servo's torque
         // off and it stays off. Switch it back on when a move is asked for, at most every
         // 2 s, so a head held by hand doesn't get a stall-current spike every tick.
-        if ((abs(dp) >= 2 || abs(dt) >= 2) && millis() - lastTorqueOnMs >= 2000) {
+        if (!released && (abs(dp) >= 2 || abs(dt) >= 2) && millis() - lastTorqueOnMs >= 2000) {
             lastTorqueOnMs = millis();
             scsTorque(1, true);
             scsTorque(2, true);
@@ -418,6 +449,13 @@ static void servoTask(void*) {
         if (abs(dt) >= 2) {
             s_rawTilt += dt;
             scsWritePos(2, s_rawTilt, moveMs);
+        }
+        if (abs(dp) >= 2 || abs(dt) >= 2) {
+            lastMoveMs = millis();
+        } else if (!released && SERVO_RELEASE_MS && millis() - lastMoveMs >= SERVO_RELEASE_MS) {
+            scsTorque(1, false);   // still for a while: let go
+            scsTorque(2, false);
+            released = true;
         }
 
         portENTER_CRITICAL(&s_mux);

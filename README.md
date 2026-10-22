@@ -17,6 +17,7 @@ Demos to learn to program [Stack-chan](docs/ROBOT.md), an M5Stack desktop robot 
 | [10 · Voice + gamepad](demos/10-voice-gamepad/) | Demo 02 (Gemini voice) with the head moved by a PS4 gamepad paired with the laptop over Bluetooth, no phone needed. | Robot, laptop with Bluetooth, PS4 gamepad and a [Gemini key](https://aistudio.google.com/apikey). |
 | [11 · Tank](demos/11-tank/) | You drive the Keyestudio KS0428 tank (Arduino UNO + HM-10) with the PS4 gamepad from the laptop, over Bluetooth LE. | KS0428 tank, laptop with Bluetooth and PS4 gamepad. |
 | [12 · Mini TV](demos/12-mini-tv/) | The robot becomes a tiny old TV: it plays videos from its microSD card, and you tap the screen to change the channel. The laptop converts any video and sends it over Wi-Fi. | Robot with a microSD card (FAT32), laptop with ffmpeg. |
+| [13 · Web server](demos/13-web-server/) | The robot serves its own web page: camera, head (360°), face, LEDs, speaker and every sensor live over a WebSocket, from any phone or laptop. Optional MQTT, and it shows up in Home Assistant. | Robot and a phone or laptop on the same Wi-Fi. For MQTT, a broker (Mosquitto). |
 
 ```
 demos/                 one folder per demo: firmware, laptop code and README

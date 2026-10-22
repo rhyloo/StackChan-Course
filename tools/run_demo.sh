@@ -178,6 +178,9 @@ case "$(basename "$DEMO")" in
     09-*)
         flash_robot "$DEMO/firmware"
         monitor "Choose the module type on the robot's screen." ;;
+    13-*)
+        flash_robot "$DEMO/firmware"
+        monitor "Open the address it prints (or tap the robot's screen for a QR code) on a phone or laptop on the same Wi-Fi." ;;
     10-*)   # the robot runs demo 02's firmware; only the laptop side changes
         need_gemini_key
         flash_robot "demos/02-gemini-voice/firmware"

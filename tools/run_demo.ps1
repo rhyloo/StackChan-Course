@@ -146,6 +146,7 @@ switch -Wildcard ($Dir.Name) {
     }
     "08-*" { Flash-Robot "$D\firmware"; Monitor "Move the servo from the robot's screen." }
     "09-*" { Flash-Robot "$D\firmware"; Monitor "Choose the module type on the robot's screen." }
+    "13-*" { Flash-Robot "$D\firmware"; Monitor "Open the address it prints (or tap the robot's screen for a QR code) on a phone or laptop on the same Wi-Fi." }
     "10-*" { Need-GeminiKey; Flash-Robot "demos\02-gemini-voice\firmware"; Start-Relay }
     "11-*" {
         # "run.bat tank": the tank's Arduino. Otherwise the robot (optional: the L2/R2 sounds) gets demo 02's firmware.

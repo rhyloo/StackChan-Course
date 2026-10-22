@@ -24,6 +24,7 @@ Repository of a course for programming Stack-chan, an M5Stack CoreS3 (ESP32-S3) 
 | `demos/10-voice-gamepad/` | Relay only: demo 02's voice plus a PS4 gamepad paired with the laptop, read with pygame (`relay/gamepad.py`). The robot runs demo 02's firmware. Pairing: `tools/pair_gamepad.sh`. |
 | `demos/11-tank/` | Keyestudio KS0428 tank: Arduino UNO firmware (`tank/`, `M<left>,<right>` commands with a 400 ms watchdog) and `laptop/tank.py` (BLE to the HM-10 with bleak). To flash it you must remove the HM-10. |
 | `demos/12-mini-tv/` | Mini TV: `laptop/tv.py` converts videos with ffmpeg to `.tv` (320x240 JPEG frames + PCM audio, format in `main.cpp`) and uploads them over Wi-Fi (HTTP, `stackchan-tv.local`) to `/tv` on the microSD. The robot plays them as channels; the audio sets the pace. |
+| `demos/13-web-server/` | The robot as a web server, no relay: `esp_http_server` page + WebSocket (port 80, page in `src/web/index.html` embedded with `board_build.embed_txtfiles`), MJPEG on port 81, optional MQTT (esp-mqtt) with Home Assistant discovery. JSON commands shared by WebSocket, MQTT and serial. |
 | `lib/StackChanHW/` | Shared C++: servos, LEDs, INA226, camera. Limits and calibration in `stackchan_limits.h`. |
 | `lib/StackChanLink/` | Shared C++: UDP link robot ↔ relay and its extension points for the demos. |
 | `lib/python/stackchan/` | Shared Python: protocol and base relay. Each demo provides `hooks.py` and `processing.py`. |

@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stack-chan</title>
+<!-- Served by the robot itself (demo 13). Everything is in this file: no Internet needed. -->
+<style>
+  :root { --bg:#0f1115; --card:#181b22; --line:#2a2f3a; --text:#e8eaf0; --dim:#8a92a6; --accent:#38bdf8; --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.4 system-ui, sans-serif; }
+  header { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--line); }
+  header h1 { font-size:18px; margin:0; }
+  #dot { width:10px; height:10px; border-radius:50%; background:var(--bad); }
+  #conn { color:var(--dim); font-size:13px; margin-left:auto; }
+  main { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:14px; padding:14px; max-width:1200px; margin:auto; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; }
+  .card h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin:0 0 10px; }
+  button, input, select { font:inherit; color:var(--text); background:#222733; border:1px solid var(--line); border-radius:8px; padding:7px 11px; }
+  button { cursor:pointer; } button:hover { border-color:var(--accent); }
+  button.on { background:var(--accent); color:#000; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:8px; }
+  #cam, #camc { width:100%; aspect-ratio:4/3; background:#000; border-radius:8px; object-fit:contain; display:block; }
+  #camc { display:none; }
+  #dial { width:220px; height:220px; display:block; margin:auto; touch-action:none; cursor:grab; }
+  input[type=range] { width:100%; }
+  .moods button { font-size:22px; padding:4px 10px; }
+  .grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; }
+  .stat { background:#1f232c; border-radius:8px; padding:8px 10px; }
+  .stat .k { color:var(--dim); font-size:12px; } .stat .v { font-size:20px; font-variant-numeric:tabular-nums; }
+  .bar { height:6px; background:#2a2f3a; border-radius:3px; margin-top:6px; overflow:hidden; }
+  .bar i { display:block; height:100%; width:0; background:var(--accent); transition:width .2s; }
+  #level { width:120px; height:120px; border-radius:50%; border:2px solid var(--line); position:relative; margin:6px auto; }
+  #level::before, #level::after { content:""; position:absolute; background:var(--line); }
+  #level::before { left:50%; top:0; bottom:0; width:1px; } #level::after { top:50%; left:0; right:0; height:1px; }
+  #bubble { width:22px; height:22px; border-radius:50%; background:var(--ok); position:absolute; left:49px; top:49px; transition:all .15s; }
+  small, .dim { color:var(--dim); }
+  code { background:#222733; padding:1px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+<header><div id="dot"></div><h1 id="name">Stack-chan</h1><span id="conn">connecting…</span></header>
+<main>
+
+  <section class="card">
+    <h2>Camera</h2>
+    <img id="cam" alt="camera off" crossorigin="anonymous">
+    <canvas id="camc"></canvas>
+    <div class="row">
+      <button id="video">Start video</button>
+      <button id="enhance" title="Average of the last 3 frames + levels, done by this browser">Enhance</button>
+      <button id="night" title="The camera aims brighter and amplifies more (more noise)">Night</button>
+    </div>
+    <div class="row">
+      <a href="/photo.jpg" target="_blank"><button>Photo</button></a>
+      <a href="/hdr.jpg" target="_blank"><button title="3 exposures fused on the robot">HDR photo</button></a>
+      <small>video about 10 fps, one viewer at a time</small>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Head</h2>
+    <svg id="dial" viewBox="-110 -110 220 220">
+      <circle r="100" fill="#1f232c" stroke="#2a2f3a" stroke-width="2"/>
+      <path id="blind" fill="#2a1d1d"/>
+      <text y="-86" text-anchor="middle" fill="#8a92a6" font-size="11">front</text>
+      <text x="-92" y="4" text-anchor="middle" fill="#8a92a6" font-size="11">L</text>
+      <text x="92" y="4" text-anchor="middle" fill="#8a92a6" font-size="11">R</text>
+      <line id="needle" x1="0" y1="0" x2="0" y2="-80" stroke="#4ade80" stroke-width="4" stroke-linecap="round"/>
+      <circle id="knob" r="11" cy="-80" fill="#38bdf8"/>
+      <rect x="-16" y="-12" width="32" height="26" rx="6" fill="#e8eaf0"/>
+      <circle cx="-7" cy="-2" r="3" fill="#0f1115"/><circle cx="7" cy="-2" r="3" fill="#0f1115"/>
+    </svg>
+    <div class="row"><span>Tilt</span><input id="tilt" type="range" min="-7" max="73" value="0"></div>
+    <div class="row">
+      <button id="center">Center</button>
+      <span class="dim">pan <b id="pan-v">0</b>°  tilt <b id="tilt-v">0</b>°</span>
+    </div>
+    <small>Drag the blue dot: the head turns all the way round. Green = where it looks now. Red = the zone behind it can't see (it crosses it fast).</small>
+  </section>
+
+  <section class="card">
+    <h2>Face, LEDs, screen, sound</h2>
+    <div class="row moods" id="moods"></div>
+    <div class="row"><input id="color" type="color" value="#00ff80"><button id="leds-off">LEDs off</button></div>
+    <div class="row"><input id="text" maxlength="40" placeholder="Text on the robot's screen"><button id="send-text">Show</button></div>
+    <div class="row">
+      <button data-song="beep">Beep</button><button data-song="scale">Do-re-mi</button>
+      <button data-song="r2">R2-D2</button><button data-song="alarm">Alarm</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Sensors, live</h2>
+    <div class="grid">
+      <div class="stat"><div class="k">Battery</div><div class="v" id="s-batt">–</div><div class="bar"><i id="b-batt"></i></div></div>
+      <div class="stat"><div class="k">Current (− = charging)</div><div class="v" id="s-ma">–</div></div>
+      <div class="stat"><div class="k">Light</div><div class="v" id="s-lux">–</div><div class="bar"><i id="b-lux"></i></div></div>
+      <div class="stat"><div class="k">Proximity (wave a hand over the camera)</div><div class="v" id="s-prox">–</div><div class="bar"><i id="b-prox"></i></div></div>
+      <div class="stat"><div class="k">Rotation speed</div><div class="v" id="s-gyro">–</div></div>
+      <div class="stat"><div class="k">Screen taps</div><div class="v" id="s-touch">–</div></div>
+      <div class="stat"><div class="k">Wi-Fi</div><div class="v" id="s-rssi">–</div></div>
+      <div class="stat"><div class="k">Chip temperature</div><div class="v" id="s-temp">–</div></div>
+      <div class="stat"><div class="k">Up for</div><div class="v" id="s-up">–</div></div>
+      <div class="stat"><div class="k">Free memory</div><div class="v" id="s-heap">–</div></div>
+    </div>
+    <div class="row" style="justify-content:center"><div><div id="level"><div id="bubble"></div></div>
+      <div class="dim" style="text-align:center">head angle (IMU): up <b id="s-pitch">0</b>°, side <b id="s-roll">0</b>°<br>tilt the head or the robot</div></div></div>
+  </section>
+
+  <section class="card">
+    <h2>MQTT / Home Assistant</h2>
+    <div>Status: <b id="mqtt-status">off</b> <span class="dim" id="mqtt-broker"></span></div>
+    <div class="row"><input id="mqtt-host" placeholder="broker IP, e.g. 192.168.0.22" size="22"><input id="mqtt-port" value="1883" size="5"><button id="mqtt-save">Save</button></div>
+    <p class="dim">Empty = off. Topics: <code id="t-state">stackchan/XXXX/state</code> (this page's data, every 2 s),
+      <code id="t-cmd">stackchan/XXXX/cmd</code> (the same JSON commands as this page) and
+      <code id="t-avail">stackchan/XXXX/availability</code>. Home Assistant finds it on its own (MQTT discovery).</p>
+  </section>
+
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let ws, state = {}, lastSent = 0;
+
+function connect() {
+  ws = new WebSocket(`ws://${location.host}/ws`);
+  ws.onopen = () => { $("dot").style.background = "var(--ok)"; $("conn").textContent = "connected"; };
+  ws.onclose = () => { $("dot").style.background = "var(--bad)"; $("conn").textContent = "reconnecting…"; setTimeout(connect, 1500); };
+  ws.onmessage = e => { state = JSON.parse(e.data); show(state); };
+}
+function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+
+// --- Head: a dial for the pan (top = front; the robot's + is its left) and a slider for the tilt
+const R = 80, BLIND = [169.7, 222.5];   // degrees the servo can't see, measured clockwise from the front
+let dragging = false, panTarget = 0;
+function polar(deg, r) { const a = deg * Math.PI / 180; return [r * Math.sin(a), -r * Math.cos(a)]; }
+(function drawBlind() {
+  const [x1, y1] = polar(BLIND[0], 100), [x2, y2] = polar(BLIND[1], 100);
+  $("blind").setAttribute("d", `M0 0 L${x1} ${y1} A100 100 0 0 1 ${x2} ${y2} Z`);
+})();
+function setKnob(pan) { const [x, y] = polar(-pan, R); $("knob").setAttribute("cx", x); $("knob").setAttribute("cy", y); }
+function dialEvent(e) {
+  const r = $("dial").getBoundingClientRect();
+  const dx = e.clientX - r.left - r.width / 2, dy = e.clientY - r.top - r.height / 2;
+  let cw = Math.atan2(dx, -dy) * 180 / Math.PI;          // clockwise from the top
+  panTarget = Math.round(-cw);                           // robot: + = left
+  if (panTarget <= -180) panTarget += 360;
+  setKnob(panTarget);
+  const now = Date.now();
+  if (now - lastSent > 60) { lastSent = now; send({ cmd: "head", pan: panTarget }); }
+}
+$("dial").addEventListener("pointerdown", e => { dragging = true; $("dial").setPointerCapture(e.pointerId); dialEvent(e); });
+$("dial").addEventListener("pointermove", e => { if (dragging) dialEvent(e); });
+$("dial").addEventListener("pointerup", e => { dragging = false; send({ cmd: "head", pan: panTarget }); });
+$("tilt").addEventListener("input", e => {
+  const now = Date.now();
+  if (now - lastSent > 60) { lastSent = now; send({ cmd: "head", tilt: +e.target.value }); }
+});
+$("tilt").addEventListener("change", e => send({ cmd: "head", tilt: +e.target.value }));
+$("center").onclick = () => { send({ cmd: "center" }); panTarget = 0; setKnob(0); $("tilt").value = 0; };
+
+// --- Face, LEDs, text
+const MOODS = { neutral: "😐", happy: "😊", sad: "😢", surprised: "😮", angry: "😠", sleepy: "😴" };
+for (const [m, emoji] of Object.entries(MOODS)) {
+  const b = document.createElement("button"); b.textContent = emoji; b.title = m; b.dataset.mood = m;
+  b.onclick = () => send({ cmd: "mood", mood: m }); $("moods").append(b);
+}
+$("color").addEventListener("input", e => {
+  const c = e.target.value; send({ cmd: "leds", r: parseInt(c.slice(1, 3), 16), g: parseInt(c.slice(3, 5), 16), b: parseInt(c.slice(5, 7), 16) });
+});
+$("leds-off").onclick = () => send({ cmd: "leds", r: 0, g: 0, b: 0 });
+$("send-text").onclick = () => send({ cmd: "text", text: $("text").value });
+$("text").addEventListener("keydown", e => { if (e.key === "Enter") $("send-text").click(); });
+
+// --- Sounds: the page plays a list of [Hz, ms] notes, one "beep" command each
+const SONGS = {
+  beep: [[1200, 120]],
+  scale: [262, 294, 330, 349, 392, 440, 494, 523].map(f => [f, 160]),
+  alarm: [[880, 200], [660, 200], [880, 200], [660, 200]],
+};
+document.querySelectorAll("[data-song]").forEach(b => b.onclick = () => {
+  let t = 0;
+  const notes = b.dataset.song === "r2" ? Array.from({ length: 10 }, () => [800 + Math.random() * 2600, 50 + Math.random() * 70]) : SONGS[b.dataset.song];
+  for (const [hz, ms] of notes) { setTimeout(() => send({ cmd: "beep", hz: Math.round(hz), ms: Math.round(ms) }), t); t += ms + 20; }
+});
+
+// --- Video: a plain <img> on the robot's MJPEG stream (port 81)
+let videoOn = false;
+$("video").onclick = () => {
+  videoOn = !videoOn;
+  $("cam").src = videoOn ? `http://${location.hostname}:81/stream` : "";
+  if (!videoOn && enhance) toggleEnhance(false);
+  $("video").textContent = videoOn ? "Stop video" : "Start video";
+  $("video").classList.toggle("on", videoOn);
+};
+
+// --- Enhance: this browser averages the last 3 frames (less noise in the dark) and stretches
+// the levels so 1 % of the pixels are black and 1 % white, with a gamma that lifts the shadows.
+let enhance = false;
+const frames = [], cv = $("camc"), cx = cv.getContext("2d", { willReadFrequently: true });
+function enhanceStep() {
+  if (!enhance || !videoOn) return;
+  const img = $("cam");
+  if (img.naturalWidth) {
+    cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+    cx.drawImage(img, 0, 0);
+    let d;
+    try { d = cx.getImageData(0, 0, cv.width, cv.height); }
+    catch (e) { toggleEnhance(false); $("enhance").textContent = "Enhance (blocked by the browser)"; return; }
+    frames.push(d.data.slice()); if (frames.length > 3) frames.shift();
+    const n = frames.length, px = d.data, len = px.length, avg = new Float32Array(len);
+    for (const f of frames) for (let i = 0; i < len; i++) avg[i] += f[i] / n;
+    const hist = new Uint32Array(256);
+    for (let i = 0; i < len; i += 4) hist[Math.min(255, (avg[i] + avg[i + 1] + avg[i + 2]) / 3 | 0)]++;
+    const total = len / 4; let lo = 0, hi = 255, acc = 0;
+    for (; lo < 254 && (acc += hist[lo]) < total * 0.01; lo++);
+    for (acc = 0; hi > lo + 1 && (acc += hist[hi]) < total * 0.01; hi--);
+    const range = Math.max(16, hi - lo), lut = new Uint8ClampedArray(256);
+    for (let v = 0; v < 256; v++) lut[v] = 255 * Math.pow(Math.max(0, (v - lo) / range), 0.7);
+    for (let i = 0; i < len; i += 4) { px[i] = lut[avg[i] | 0]; px[i + 1] = lut[avg[i + 1] | 0]; px[i + 2] = lut[avg[i + 2] | 0]; }
+    cx.putImageData(d, 0, 0);
+  }
+  setTimeout(enhanceStep, 100);                         // about the video's frame rate
+}
+function toggleEnhance(on) {
+  enhance = on; frames.length = 0;
+  $("enhance").classList.toggle("on", on);
+  $("cam").style.display = on ? "none" : "block"; cv.style.display = on ? "block" : "none";
+  if (on) { if (!videoOn) $("video").click(); enhanceStep(); }
+}
+$("enhance").onclick = () => toggleEnhance(!enhance);
+$("night").onclick = () => send({ cmd: "camera", night: !state.night });
+
+// --- MQTT
+$("mqtt-save").onclick = () => send({ cmd: "mqtt", host: $("mqtt-host").value.trim(), port: +$("mqtt-port").value || 1883 });
+
+// --- Showing the state the robot sends 5 times a second
+function bar(id, frac) { $(id).style.width = Math.max(0, Math.min(100, frac * 100)) + "%"; }
+function show(s) {
+  $("name").textContent = s.name;
+  document.title = s.name;
+  const base = "stackchan/" + s.name.replace("stackchan-", "");
+  $("t-state").textContent = base + "/state"; $("t-cmd").textContent = base + "/cmd"; $("t-avail").textContent = base + "/availability";
+  $("needle").setAttribute("transform", `rotate(${-s.pan})`);
+  $("pan-v").textContent = Math.round(s.pan); $("tilt-v").textContent = Math.round(s.tilt);
+  $("s-batt").textContent = `${s.pct} % · ${s.batt} V`; bar("b-batt", s.pct / 100);
+  $("s-ma").textContent = s.ma === undefined ? "–" : `${s.ma} mA`;
+  $("s-lux").textContent = `${s.lux} lx`; bar("b-lux", Math.log10(1 + s.lux) / 4);
+  $("s-prox").textContent = s.prox; bar("b-prox", s.prox / 2047);
+  $("s-gyro").textContent = `${s.gyro} °/s`;
+  $("s-touch").textContent = s.touch;
+  $("s-rssi").textContent = `${s.rssi} dBm`;
+  $("s-temp").textContent = `${s.temp} °C`;
+  $("s-up").textContent = s.up < 3600 ? `${Math.floor(s.up / 60)} min ${s.up % 60} s` : `${(s.up / 3600).toFixed(1)} h`;
+  $("s-heap").textContent = `${Math.round(s.heap / 1024)} KB`;
+  $("s-pitch").textContent = s.pitch; $("s-roll").textContent = s.roll;
+  const k = 49 / 30;                                    // 30° of tilt = the edge of the circle
+  $("bubble").style.left = 49 + Math.max(-49, Math.min(49, s.roll * k)) + "px";
+  $("bubble").style.top = 49 + Math.max(-49, Math.min(49, -s.pitch * k)) + "px";
+  $("night").classList.toggle("on", !!s.night);
+  document.querySelectorAll("#moods button").forEach(b => b.classList.toggle("on", b.dataset.mood === s.mood));
+  $("mqtt-status").textContent = s.mqtt;
+  $("mqtt-status").style.color = { connected: "var(--ok)", connecting: "var(--warn)", error: "var(--bad)" }[s.mqtt] || "";
+  $("mqtt-broker").textContent = s.broker ? `(${s.broker})` : "";
+  if (document.activeElement !== $("mqtt-host") && !$("mqtt-host").value && s.broker) $("mqtt-host").value = s.broker.split(":")[0];
+}
+connect();
+</script>
+</body>
+</html>
