@@ -25,6 +25,7 @@ Repository of a course for programming Stack-chan, an M5Stack CoreS3 (ESP32-S3) 
 | `demos/11-tank/` | Keyestudio KS0428 tank: Arduino UNO firmware (`tank/`, `M<left>,<right>` commands with a 400 ms watchdog) and `laptop/tank.py` (BLE to the HM-10 with bleak). To flash it you must remove the HM-10. |
 | `demos/12-mini-tv/` | Mini TV: `laptop/tv.py` converts videos with ffmpeg to `.tv` (320x240 JPEG frames + PCM audio, format in `main.cpp`) and uploads them over Wi-Fi (HTTP, `stackchan-tv.local`) to `/tv` on the microSD. The robot plays them as channels; the audio sets the pace. |
 | `demos/13-web-server/` | The robot as a web server, no relay: `esp_http_server` page + WebSocket (port 80, page in `src/web/index.html` embedded with `board_build.embed_txtfiles`), MJPEG on port 81, optional MQTT (esp-mqtt) with Home Assistant discovery. JSON commands shared by WebSocket, MQTT and serial. |
+| `demos/14-robot-arm/` | Not the robot: Elecfreaks Nezha Pro arm (micro:bit V2 + Nezha Pro board, smart motors M1-M3 over I2C 0x10, gripper on M3). MakeCode TypeScript in `microbit/`: text commands over USB serial (`run`/`move`/`goto`/`stop`/`zero`, replies `pos a1 a2 a3`), A/B move the gripper, a motor stops when its encoder stalls. Built offline by `tools/microbit.py` (pxt in `.makecode/`, needs Node.js) and flashed by copying the `.hex` to the `MICROBIT` drive. `laptop/arm_web.py` serves the web page (stdlib `http.server`, port 8014, `web/index.html`); `laptop/console.py` is the terminal console. |
 | `lib/StackChanHW/` | Shared C++: servos, LEDs, INA226, camera. Limits and calibration in `stackchan_limits.h`. |
 | `lib/StackChanLink/` | Shared C++: UDP link robot ↔ relay and its extension points for the demos. |
 | `lib/python/stackchan/` | Shared Python: protocol and base relay. Each demo provides `hooks.py` and `processing.py`. |
@@ -43,6 +44,7 @@ demos/05-nfc-voice/run.sh [--no-flash]                       # a demo in one ste
 .venv/bin/python -m unittest discover -s lib/python/tests    # protocol tests
 demos/02-gemini-voice/server.sh --debug                   # relay; --debug saves logs/relay-*.log
 .venv/bin/python tools/serial_log.py demos/02-gemini-voice/firmware   # robot serial → logs/robot-*.log
+.venv/bin/python tools/microbit.py flash demos/14-robot-arm/microbit   # MakeCode project → MICROBIT drive
 ```
 
 `run.sh` modes: `--flash-only`, `--debug`, `--no-flash`, plus `--usb PORT` and `--help` (Windows `run.bat`: `-FlashOnly`, `-DebugLogs`, `-NoFlash`, `-Usb`). Sub-commands: `demos/03-espnow-beacons/run.sh beacons`, `demos/11-tank/run.sh tank`, `demos/12-mini-tv/run.sh channels | add VIDEO | list | remove NAME` (channels from `channels.txt`).

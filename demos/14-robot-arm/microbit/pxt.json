@@ -1,0 +1,13 @@
+{
+    "name": "stackchan-demo-14-robot-arm",
+    "description": "Demo 14: the gripper of the Nezha Pro robotic arm, from the A/B buttons or the USB serial port",
+    "dependencies": {
+        "core": "*",
+        "pxt-nezha2": "github:elecfreaks/pxt-nezha2#v1.2.1",
+        "microphone": "*"
+    },
+    "files": [
+        "main.ts"
+    ],
+    "preferredEditor": "tsprj"
+}

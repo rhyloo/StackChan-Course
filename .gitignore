@@ -16,3 +16,8 @@ demos/12-mini-tv/videos/
 *.tv
 logs/
 CLAUDE.local.md
+# MakeCode (micro:bit): the compiler (tools/microbit.py installs it) and what it generates
+.makecode/
+demos/*/microbit/built/
+demos/*/microbit/pxt_modules/
+demos/*/microbit/tsconfig.json

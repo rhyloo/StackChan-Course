@@ -42,6 +42,7 @@ if ($Help -or $Rest -contains "--help") {
         "01-*" { $laptop = "$D\relay\main.py" } "02-*" { $laptop = "$D\relay\main.py" } "02.1-*" { $laptop = "$D\relay\main.py" } "05-*" { $laptop = "$D\relay\main.py" }
         "07-*" { $laptop = "$D\relay\main.py" } "10-*" { $laptop = "$D\relay\main.py" }
         "03-*" { $laptop = "$D\laptop\position.py"; Write-Host "`nAlso:`n  $D\run.bat beacons   flash the three ESP32 beacons, one after another" }
+        "14-*" { $laptop = "$D\laptop\arm_web.py" }
         "12-*" { $laptop = "$D\laptop\tv.py"; Write-Host "`nAlso, without flashing:`n  $D\run.bat channels | add VIDEO | list | remove NAME" }
         "11-*" { $laptop = "$D\laptop\drive.py"
                  Write-Host "`nAlso:`n  $D\run.bat tank      flash the tank's Arduino (remove the HM-10 first)"
@@ -171,6 +172,18 @@ switch -Wildcard ($Dir.Name) {
         Say "Drive with the PS4 gamepad; L2 horn, R2 blaster on the robot (Ctrl+C to quit)"
         & $Py "$D\laptop\drive.py" @Rest
         exit $LASTEXITCODE
+    }
+    "14-*" {
+        # A micro:bit, not the robot: MakeCode's compiler builds it and the .hex is copied to the MICROBIT drive.
+        if (-not $NoFlash) {
+            Say "Building $D\microbit and copying it to the micro:bit. The first time installs the MakeCode compiler..."
+            & $Py tools\microbit.py flash "$D\microbit"
+            if ($LASTEXITCODE) { Fail "Could not flash the micro:bit." }
+            if ($FlashOnly) { exit 0 }
+        }
+        Say "Opening the arm's web page (Ctrl+C to quit). The micro:bit's A and B buttons still move the gripper."
+        $a = @("$D\laptop\arm_web.py"); if ($Usb) { $a += @("--port", $Usb) }
+        Run-Laptop ($a + $Rest)
     }
     "12-*" {
         # "run.bat channels", "run.bat add VIDEO", "run.bat list"...: only the laptop side, without flashing

@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Robotic arm</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --text: #1d2330; --muted: #677085; --line: #dde1e8;
+    --accent: #2a6df4; --accent-text: #ffffff; --stop: #d93636; --ok: #1f9d55; --warn: #c27c0e;
+    --button: #eef1f6; --button-hover: #e2e7ef;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --card: #1b2029; --text: #e7eaf0; --muted: #98a1b3; --line: #2b3240;
+      --accent: #5b8ff9; --accent-text: #0d1117; --stop: #f05252; --ok: #3ccf7c; --warn: #f0a83c;
+      --button: #252b37; --button-hover: #2f3746;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  h1 { font-size: 20px; margin: 0; flex: 1; }
+  h2 { font-size: 15px; margin: 0 0 10px; }
+  .status { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--stop); }
+  .dot.on { background: var(--ok); }
+  button { font: inherit; color: var(--text); background: var(--button); border: 1px solid var(--line); border-radius: 8px;
+           padding: 8px 12px; cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; }
+  button:hover { background: var(--button-hover); }
+  button:active, button.held { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  #stop { background: var(--stop); border-color: var(--stop); color: #fff; font-weight: 700; padding: 10px 22px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .motor-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .motor-head small { color: var(--muted); }
+  .angle { font-size: 40px; font-weight: 650; font-variant-numeric: tabular-nums; margin: 6px 0 2px; }
+  .chip { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--button); color: var(--muted); }
+  .chip.run, .chip.move { background: var(--accent); color: var(--accent-text); }
+  .chip.stall { background: var(--warn); color: #fff; }
+  .row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+  .jog { flex: 1; font-size: 22px; padding: 14px 0; }
+  .row button.step { flex: 1; padding: 8px 0; }
+  input[type=number], input[type=text] { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line);
+           border-radius: 8px; padding: 8px 10px; min-width: 0; }
+  input[type=number] { width: 90px; }
+  .speed { display: flex; align-items: center; gap: 10px; }
+  .speed input { flex: 1; accent-color: var(--accent); }
+  .speed output { width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
+  .poses { list-style: none; margin: 0; padding: 0; }
+  .poses li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .poses li span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .poses li small { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .poses li.playing { color: var(--accent); font-weight: 600; }
+  #log { height: 220px; overflow-y: auto; font: 12px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: var(--muted);
+         background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; white-space: pre-wrap; margin: 0; }
+  #log .sent { color: var(--accent); }
+  #log .err { color: var(--stop); }
+  .hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+  .section { margin-top: 16px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Robotic arm</h1>
+    <div class="status"><span class="dot" id="dot"></span><span id="conn">connecting...</span></div>
+    <button id="stop" title="Space bar">STOP</button>
+  </header>
+
+  <div class="grid" id="motors"></div>
+
+  <div class="grid section">
+    <div class="card">
+      <h2>Speed</h2>
+      <div class="speed"><input type="range" id="speed" min="20" max="100" step="5" value="40"><output id="speedOut">40</output></div>
+      <p class="hint">For the hold buttons, the steps and "Go". Hold a ◀ ▶ button to turn a motor: it stops when you let go, or by itself if it gets stuck.</p>
+      <div class="row"><button id="zeroAll">Zero all</button><span class="hint" style="margin:0">The current position becomes 0 (nothing moves).</span></div>
+    </div>
+    <div class="card">
+      <h2>Poses</h2>
+      <div class="row" style="margin-top:0">
+        <input type="text" id="poseName" placeholder="Name (e.g. pick up)" style="flex:1">
+        <button id="savePose">Save current</button>
+      </div>
+      <ul class="poses" id="poses"></ul>
+      <div class="row"><button class="primary" id="play">▶ Play all in order</button></div>
+      <p class="hint">Saved in this browser. The angles count from where the arm was when the micro:bit started: start it in the same position (or use Zero) for the poses to be the same.</p>
+    </div>
+  </div>
+
+  <div class="card section">
+    <h2>Serial</h2>
+    <pre id="log"></pre>
+    <form class="row" id="cmdForm">
+      <input type="text" id="cmd" placeholder="run 1 50 · move 2 -90 · goto 3 0 · close · stop" style="flex:1" autocomplete="off">
+      <button class="primary">Send</button>
+    </form>
+  </div>
+</main>
+
+<script>
+const MOTORS = [
+  { n: 1, name: "M1", note: "up/down in Elecfreaks' case" },
+  { n: 2, name: "M2", note: "left/right in Elecfreaks' case" },
+  { n: 3, name: "M3 · gripper", note: "", gripper: true },
+];
+const STEPS = [-90, -10, 10, 90];
+const JOG_EVERY_MS = 200;     // while a button is held, the run order is repeated this often...
+const JOG_MS = 600;           // ...and lasts this long: if the page dies, the motor stops on its own
+const $ = (id) => document.getElementById(id);
+
+let seq = 0;
+let state = null;
+let speed = 40;
+let playing = false;
+
+async function send(text) {
+  try {
+    await fetch("/cmd", { method: "POST", body: text });
+  } catch (e) {
+    addLog("--- the server doesn't answer", "err");
+  }
+}
+
+// ---------------------------------------------------------------- motor cards
+function motorCard(m) {
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `
+    <div class="motor-head"><h2>${m.name}</h2><small>${m.note}</small></div>
+    <div class="angle"><span id="a${m.n}">–</span>°</div>
+    <span class="chip" id="s${m.n}">idle</span>
+    <div class="row">
+      <button class="jog" data-m="${m.n}" data-dir="-1" title="Hold">◀</button>
+      <button class="jog" data-m="${m.n}" data-dir="1" title="Hold">▶</button>
+    </div>
+    <div class="row">${STEPS.map(d => `<button class="step" data-m="${m.n}" data-step="${d}">${d > 0 ? "+" : ""}${d}°</button>`).join("")}</div>
+    <div class="row">
+      <input type="number" id="g${m.n}" value="0" step="10" aria-label="Target angle">
+      <button data-goto="${m.n}">Go</button>
+      <button data-zero="${m.n}">Zero</button>
+      <button data-stop="${m.n}">Stop</button>
+    </div>
+    ${m.gripper ? `<div class="row"><button class="primary" style="flex:1" data-grip="open">Open</button>
+                   <button class="primary" style="flex:1" data-grip="close">Close (grip)</button></div>` : ""}`;
+  return card;
+}
+
+for (const m of MOTORS) $("motors").appendChild(motorCard(m));
+
+function holdToJog(button) {
+  let timer = null;
+  const go = () => send(`run ${button.dataset.m} ${button.dataset.dir * speed} ${JOG_MS}`);
+  const end = () => {
+    if (timer === null) return;
+    clearInterval(timer);
+    timer = null;
+    button.classList.remove("held");
+    send(`stop ${button.dataset.m}`);
+  };
+  button.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    button.setPointerCapture(e.pointerId);
+    button.classList.add("held");
+    go();
+    timer = setInterval(go, JOG_EVERY_MS);
+  });
+  for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) button.addEventListener(ev, end);
+  button.addEventListener("contextmenu", (e) => e.preventDefault());
+}
+document.querySelectorAll(".jog").forEach(holdToJog);
+
+$("motors").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  if (b.dataset.step) send(`move ${b.dataset.m} ${b.dataset.step} ${speed}`);
+  if (b.dataset.goto) send(`goto ${b.dataset.goto} ${$("g" + b.dataset.goto).value || 0} ${speed}`);
+  if (b.dataset.zero) send(`zero ${b.dataset.zero}`);
+  if (b.dataset.stop) send(`stop ${b.dataset.stop}`);
+  if (b.dataset.grip) send(b.dataset.grip);
+});
+
+// ---------------------------------------------------------------- speed, stop
+$("speed").addEventListener("input", (e) => { speed = +e.target.value; $("speedOut").value = speed; });
+$("speed").addEventListener("change", () => send(`speed ${speed}`));
+$("zeroAll").addEventListener("click", () => send("zero"));
+
+function stopAll() {
+  playing = false;
+  send("stop");
+}
+$("stop").addEventListener("click", stopAll);
+document.addEventListener("keydown", (e) => {
+  if (e.code === "Space" && !["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) {
+    e.preventDefault();
+    stopAll();
+  }
+});
+
+// ---------------------------------------------------------------- poses
+function loadPoses() {
+  try { return JSON.parse(localStorage.getItem("arm-poses") || "[]"); } catch (e) { return []; }
+}
+function savePoses(poses) {
+  try { localStorage.setItem("arm-poses", JSON.stringify(poses)); } catch (e) { /* private window: poses only for now */ }
+  renderPoses(poses);
+}
+let poses = loadPoses();
+
+function renderPoses(list) {
+  poses = list;
+  const ul = $("poses");
+  ul.innerHTML = "";
+  list.forEach((p, i) => {
+    const li = document.createElement("li");
+    li.id = "pose" + i;
+    const name = document.createElement("span");
+    name.textContent = p.name;
+    const angles = document.createElement("small");
+    angles.textContent = p.angles.join(" · ");
+    const go = document.createElement("button");
+    go.textContent = "Go";
+    go.onclick = () => goToPose(p);
+    const del = document.createElement("button");
+    del.textContent = "✕";
+    del.title = "Delete";
+    del.onclick = () => savePoses(poses.filter((_, j) => j !== i));
+    li.append(name, angles, go, del);
+    ul.appendChild(li);
+  });
+}
+renderPoses(poses);
+
+$("savePose").addEventListener("click", () => {
+  if (!state) return;
+  const name = $("poseName").value.trim() || `Pose ${poses.length + 1}`;
+  savePoses([...poses, { name, angles: [...state.angles] }]);
+  $("poseName").value = "";
+});
+
+function goToPose(p) {
+  send(p.angles.map((a, i) => `goto ${i + 1} ${a} ${speed}`).join("\n"));
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function waitIdle(timeoutMs) {
+  const end = Date.now() + timeoutMs;
+  await sleep(600);                 // the micro:bit takes a moment to report "moving"
+  while (playing && Date.now() < end) {
+    if (state && state.motors.every((m) => m.state === "idle")) return;
+    await sleep(150);
+  }
+}
+$("play").addEventListener("click", async () => {
+  if (playing || !poses.length) return;
+  playing = true;
+  for (let i = 0; i < poses.length && playing; i++) {
+    document.querySelectorAll(".poses li").forEach((li) => li.classList.toggle("playing", li.id === "pose" + i));
+    goToPose(poses[i]);
+    await waitIdle(20000);
+  }
+  playing = false;
+  document.querySelectorAll(".poses li").forEach((li) => li.classList.remove("playing"));
+});
+
+// ---------------------------------------------------------------- serial log
+function addLog(text, cls) {
+  const log = $("log");
+  const atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 4;
+  const line = document.createElement("div");
+  line.textContent = text;
+  if (cls) line.className = cls;
+  log.appendChild(line);
+  while (log.childNodes.length > 300) log.removeChild(log.firstChild);
+  if (atBottom) log.scrollTop = log.scrollHeight;
+}
+$("cmdForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const text = $("cmd").value.trim();
+  if (text) send(text);
+  $("cmd").value = "";
+});
+
+// ---------------------------------------------------------------- state
+async function poll() {
+  try {
+    const r = await fetch(`/state?since=${seq}`);
+    state = await r.json();
+    if (state.seq < seq) seq = 0;                    // the server restarted
+    for (const [, text] of state.log) {
+      const body = text.slice(9);
+      if (body.startsWith("pos ")) continue;          // the angles are on the cards
+      addLog(text, body.startsWith("> ") ? "sent" : body.startsWith("error") || body.startsWith("---") ? "err" : "");
+    }
+    seq = state.seq;
+    $("dot").classList.toggle("on", state.connected);
+    $("conn").textContent = state.connected ? `micro:bit on ${state.port}` : "micro:bit not connected";
+    state.angles.forEach((a, i) => { $("a" + (i + 1)).textContent = a; });
+    state.motors.forEach((m, i) => {
+      const chip = $("s" + (i + 1));
+      const label = m.state !== "idle" ? m.state : m.last === "stall" ? "stuck: stopped" : m.last || "idle";
+      chip.textContent = label;
+      chip.className = "chip " + (m.state !== "idle" ? m.state : m.last === "stall" ? "stall" : "");
+    });
+  } catch (e) {
+    $("dot").classList.remove("on");
+    $("conn").textContent = "the server doesn't answer";
+  }
+  setTimeout(poll, 200);
+}
+poll();
+</script>
+</body>
+</html>

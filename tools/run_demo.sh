@@ -39,6 +39,7 @@ show_help() {
         03-*) laptop="$DEMO/laptop/position.py" ;;
         11-*) laptop="$DEMO/laptop/drive.py" ;;
         12-*) laptop="$DEMO/laptop/tv.py" ;;
+        14-*) laptop="$DEMO/laptop/arm_web.py" ;;
     esac
     cat <<EOF
 Usage: $DEMO/run.sh [mode] [--usb PORT] [options]
@@ -204,6 +205,14 @@ case "$(basename "$DEMO")" in
         [ "$FLASH" = 0 ] || flash_robot "demos/02-gemini-voice/firmware"
         say "Drive with the PS4 gamepad; L2 horn, R2 blaster on the robot (Ctrl+C to quit)"
         exec "$PY" "$DEMO/laptop/drive.py" ${ARGS[@]+"${ARGS[@]}"} ;;
+    14-*)   # a micro:bit, not the robot: MakeCode's compiler builds it and the .hex is copied to the MICROBIT drive
+        if [ "$FLASH" = 1 ]; then
+            say "Building $DEMO/microbit and copying it to the micro:bit. The first time installs the MakeCode compiler..."
+            "$PY" tools/microbit.py flash "$DEMO/microbit" || fail "Could not flash the micro:bit."
+            [ "$MODE" != flash-only ] || exit 0
+        fi
+        say "Opening the arm's web page (Ctrl+C to quit). The micro:bit's A and B buttons still move the gripper."
+        run "$PY" "$DEMO/laptop/arm_web.py" ${PORT:+--port "$PORT"} ${ARGS[@]+"${ARGS[@]}"} ;;
     12-*)   # "run.sh channels", "run.sh add VIDEO", "run.sh list"...: only the laptop side, without flashing
         if [ ${#ARGS[@]} -gt 0 ]; then run "$PY" "$DEMO/laptop/tv.py" "${ARGS[@]}"; fi
         flash_robot "$DEMO/firmware"

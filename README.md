@@ -18,6 +18,7 @@ Demos to learn to program [Stack-chan](docs/ROBOT.md), an M5Stack desktop robot 
 | [11 · Tank](demos/11-tank/) | You drive the Keyestudio KS0428 tank (Arduino UNO + HM-10) with the PS4 gamepad from the laptop, over Bluetooth LE. | KS0428 tank, laptop with Bluetooth and PS4 gamepad. |
 | [12 · Mini TV](demos/12-mini-tv/) | The robot becomes a tiny old TV: it plays videos from its microSD card, and you tap the screen to change the channel. The laptop converts any video and sends it over Wi-Fi. | Robot with a microSD card (FAT32), laptop with ffmpeg. |
 | [13 · Web server](demos/13-web-server/) | The robot serves its own web page: camera, head (360°), face, LEDs, speaker and every sensor live over a WebSocket, from any phone or laptop. Optional MQTT, and it shows up in Home Assistant. | Robot and a phone or laptop on the same Wi-Fi. For MQTT, a broker (Mosquitto). |
+| [14 · Robotic arm](demos/14-robot-arm/) | Elecfreaks' Nezha Pro arm (micro:bit V2) from a web page: hold a button to turn each joint, go to an angle, open and close the gripper, and save poses to play them back. The motors stop by themselves when they get stuck. The program is MakeCode, built without the browser. | The arm from the Nezha Pro AI Mechanical Power Kit (case 10) and a laptop with Node.js. |
 
 ```
 demos/                 one folder per demo: firmware, laptop code and README
