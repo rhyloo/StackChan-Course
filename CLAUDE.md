@@ -44,7 +44,7 @@ demos/02-gemini-voice/server.sh --debug                   # relay; --debug saves
 .venv/bin/python tools/serial_log.py demos/02-gemini-voice/firmware   # robot serial → logs/robot-*.log
 ```
 
-`run.sh` modes: `--flash-only`, `--debug`, `--no-flash`, plus `--usb PORT` and `--help` (Windows `run.bat`: `-FlashOnly`, `-DebugLogs`, `-NoFlash`, `-Usb`). Sub-commands: `demos/03-espnow-beacons/run.sh beacons`, `demos/11-tank/run.sh tank`, `demos/12-mini-tv/run.sh sample | add VIDEO | list | remove NAME`.
+`run.sh` modes: `--flash-only`, `--debug`, `--no-flash`, plus `--usb PORT` and `--help` (Windows `run.bat`: `-FlashOnly`, `-DebugLogs`, `-NoFlash`, `-Usb`). Sub-commands: `demos/03-espnow-beacons/run.sh beacons`, `demos/11-tank/run.sh tank`, `demos/12-mini-tv/run.sh channels | add VIDEO | list | remove NAME` (channels from `channels.txt`).
 
 Pinned platform: `espressif32@7.1.2` (Arduino-ESP32 2.0.17, ESP-IDF 4.4.7), M5Unified 0.2.21.
 

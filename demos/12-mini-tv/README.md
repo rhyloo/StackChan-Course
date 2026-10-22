@@ -17,30 +17,54 @@ robot:  /tv/*.tv = channels --> JPEG on the screen + sound on the speaker
 
 - **The robot with a microSD card** formatted as **FAT32** (a 32 GB card works). Cards of 64 GB or more come as exFAT and the robot can't read them: format them as FAT32 first.
 - **The laptop** on the same Wi-Fi as the robot, with **ffmpeg** (`sudo apt install ffmpeg`; on Windows, `winget install ffmpeg`).
-- **Videos.** The demo downloads two free ones to start with: the trailers of *Sintel* and *Big Buck Bunny*, short films by the Blender Foundation under the [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) licence (you can show them anywhere as long as you credit them; the robot shows the credit on screen). You can add any video of your own.
+- **Videos.** The demo downloads the ones in [`channels.txt`](channels.txt): Google's video about its centre in Málaga and the trailers of *Sintel* and *Big Buck Bunny*, short films by the Blender Foundation under the [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) licence (you can show them anywhere as long as you credit them; the robot shows the credit on screen). You can add any video of your own.
 
 ## Run it
 
 Plug the robot in over USB-C and run:
 
 ```bash
-demos/12-mini-tv/run.sh               # flash the robot; if its card has no videos, upload the two samples
+demos/12-mini-tv/run.sh               # flash the robot and upload the channels of channels.txt it doesn't have
 demos/12-mini-tv/run.sh --flash-only  # only build and flash; the firmware stays on the robot
-demos/12-mini-tv/run.sh --no-flash    # don't flash: list the robot's channels
+demos/12-mini-tv/run.sh --no-flash    # don't flash: list the channels and upload the missing ones
 demos/12-mini-tv/run.sh --help        # every option of this demo
 ```
 
 Once the firmware is on the robot, these talk to it over Wi-Fi without flashing again:
 
 ```bash
-demos/12-mini-tv/run.sh sample                          # download and upload the two sample videos
+demos/12-mini-tv/run.sh channels                        # download and upload what's missing from channels.txt
 demos/12-mini-tv/run.sh add ~/Videos/clip.mp4           # convert and upload a video as a new channel
 demos/12-mini-tv/run.sh add film.mkv --start 60 --duration 120 --title "My film"
 demos/12-mini-tv/run.sh list                            # the channels on the card and the space used
 demos/12-mini-tv/run.sh remove clip                     # delete a channel
 ```
 
-On Windows use `run.bat` with `-FlashOnly` and `-NoFlash`, and `run.bat sample`, `run.bat add VIDEO`...
+On Windows use `run.bat` with `-FlashOnly` and `-NoFlash`, and `run.bat channels`, `run.bat add VIDEO`...
+
+### The channel list
+
+[`channels.txt`](channels.txt) is the list of channels the course robot carries. One per line: file name, title shown on screen and video, which can be a web address (mp4, ogg, webm… or an HLS `.m3u8` stream like those of news sites) or a file on the laptop:
+
+```
+00-google-malaga | Google en Málaga - Centro de Ingeniería de Seguridad | https://hls.diariodesevilla.es/.../master.m3u8
+big-buck-bunny-trailer | Big Buck Bunny (trailer) - Blender Foundation, CC BY 3.0 | https://download.blender.org/peach/trailer/trailer_400p.ogg
+sintel-trailer | Sintel (trailer) - Blender Foundation, CC BY 3.0 | https://download.blender.org/durian/trailer/sintel_trailer-480p.mp4
+```
+
+`run.sh` downloads each video into `videos/` (not in git), converts it and uploads it, **only if the card doesn't have it yet**: running it again doesn't repeat anything. To upload them all again (after changing the quality, say), add `--force`. The channels are sorted by file name, so the `00-` prefix makes the Google video channel 1.
+
+The Blender trailers are CC BY 3.0. The Google video belongs to Google: it's fine to show it to the course group, but don't publish it.
+
+### From another computer
+
+The videos live on the robot's microSD card, not in the firmware or the repo. Flashing any demo doesn't touch the card, so the robot keeps its channels whichever computer flashes it. Another computer only needs this to fill a new card or another robot:
+
+1. Clone the repo and run `./setup.sh` (`setup.bat` on Windows).
+2. Install ffmpeg: `sudo apt install ffmpeg` (Windows: `winget install ffmpeg`).
+3. Connect it to the **same Wi-Fi as the robot**.
+4. Run `demos/12-mini-tv/run.sh` (`demos\12-mini-tv\run.bat` on Windows). It flashes the robot, downloads the videos of `channels.txt` and uploads the missing ones. If the robot already has demo 12: `run.sh channels`.
+5. Check them with `demos/12-mini-tv/run.sh list`.
 
 The laptop finds the robot as `stackchan-tv.local`. If that name doesn't work on your network, pass the IP that the robot's screen shows: `run.sh list --robot 192.168.1.134`.
 
@@ -95,7 +119,8 @@ On the CoreS3 the card and the screen hang from the same SPI bus (pins G35, G36 
 | File | What for |
 |---|---|
 | `firmware/src/main.cpp` | Channels, playback (`playStep()`), static between channels, on-screen display and the upload server |
-| `laptop/tv.py` | Conversion with ffmpeg (`convert()`), upload (`upload()`) and the samples |
+| `channels.txt` | The channels `run.sh` keeps on the card |
+| `laptop/tv.py` | Conversion with ffmpeg (`convert()`), upload (`upload()`) and the channel list (`load_channels()`) |
 
 ## Troubleshooting
 

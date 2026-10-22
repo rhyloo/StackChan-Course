@@ -1,0 +1,14 @@
+# Demo 12 channels. run.sh (or run.sh channels) downloads and uploads the ones the
+# robot's SD card doesn't have yet; the ones it has are left alone.
+#
+# One channel per line:  file name | title shown on screen | video
+# The video is a web address (mp4, ogg, webm..., or an HLS .m3u8 stream) or a file
+# on the laptop (relative to this folder). Downloads are kept in videos/ (not in git).
+# Channels are sorted by file name: the 00- prefix makes the Google video channel 1.
+#
+# The Blender trailers are CC BY 3.0: you can show them anywhere as long as you credit them.
+# The Google video belongs to Google: fine to show to the course group, don't publish it.
+
+00-google-malaga | Google en Málaga - Centro de Ingeniería de Seguridad | https://hls.diariodesevilla.es/2022/10/28/JOLVID20221028_0014/,32630_54,32631_55,.mp4.urlset/master.m3u8
+big-buck-bunny-trailer | Big Buck Bunny (trailer) - Blender Foundation, CC BY 3.0 | https://download.blender.org/peach/trailer/trailer_400p.ogg
+sintel-trailer | Sintel (trailer) - Blender Foundation, CC BY 3.0 | https://download.blender.org/durian/trailer/sintel_trailer-480p.mp4

@@ -1,7 +1,7 @@
 """Demo 12 - Mini TV: turns videos into .tv files and sends them to the robot over Wi-Fi.
 
-    tv.py                       list the robot's channels (and upload the samples if it has none)
-    tv.py sample                download two free Blender Foundation trailers (CC BY 3.0) and upload them
+    tv.py                       list the robot's channels and upload the ones in channels.txt it doesn't have
+    tv.py channels [FILE]       only that: download and upload what's missing from channels.txt (or FILE)
     tv.py add VIDEO [options]   convert any video (mp4, mkv, webm...) and upload it as a new channel
     tv.py list                  the channels on the robot's SD card
     tv.py remove NAME           delete a channel (NAME as `list` shows it)
@@ -25,15 +25,10 @@ import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-VIDEOS = HERE.parent / "videos"          # downloaded samples (not in git)
+VIDEOS = HERE.parent / "videos"          # downloaded videos (not in git)
+CHANNELS = HERE.parent / "channels.txt"  # the channels `tv.py` keeps on the robot
 ROBOT = "stackchan-tv.local"
 JPEG_MAX = 64 * 1024                     # the robot's frame buffer
-SAMPLES = [
-    ("https://download.blender.org/durian/trailer/sintel_trailer-480p.mp4", "sintel-trailer",
-     "Sintel (trailer) - Blender Foundation, CC BY 3.0"),
-    ("https://download.blender.org/peach/trailer/trailer_400p.ogg", "big-buck-bunny-trailer",
-     "Big Buck Bunny (trailer) - Blender Foundation, CC BY 3.0"),
-]
 
 
 def fail(msg):
@@ -177,37 +172,72 @@ def add(ip, video, name, title, **opts):
         upload(ip, out, name)
 
 
-def download(url, dest):
+def fetch(source, name):
+    """The video of a channel: a local file, a web address or an HLS stream (.m3u8), saved in videos/."""
+    if not re.match(r"https?://", source):
+        path = Path(source).expanduser()
+        path = path if path.is_absolute() else HERE.parent / path
+        if not path.exists():
+            fail(f"{path} doesn't exist.")
+        return path
+    hls = ".m3u8" in source
+    dest = VIDEOS / (name + (".mp4" if hls else Path(source.split("?")[0]).suffix or ".mp4"))
     if dest.exists():
         return dest
     dest.parent.mkdir(parents=True, exist_ok=True)
-    print(f"Downloading {url}")
-    part = dest.with_suffix(dest.suffix + ".part")
-    with urllib.request.urlopen(url, timeout=30) as r, open(part, "wb") as f:
-        total = int(r.headers.get("Content-Length", 0))
-        done = 0
-        while chunk := r.read(256 * 1024):
-            f.write(chunk)
-            done += len(chunk)
-            if total:
-                print(f"\r  {done * 100 // total:3d} %", end="", flush=True)
-    print()
+    print(f"Downloading {source}")
+    part = dest.with_name(dest.name + ".part")
+    if hls:   # a stream in pieces: ffmpeg joins them without converting
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", source, "-c", "copy", "-f", "mp4", str(part)], check=True)
+    else:
+        with urllib.request.urlopen(source, timeout=30) as r, open(part, "wb") as f:
+            total = int(r.headers.get("Content-Length", 0))
+            done = 0
+            while chunk := r.read(256 * 1024):
+                f.write(chunk)
+                done += len(chunk)
+                if total:
+                    print(f"\r  {done * 100 // total:3d} %", end="", flush=True)
+        print()
     part.rename(dest)
     return dest
 
 
-def sample(ip, **opts):
-    for url, name, title in SAMPLES:
-        video = download(url, VIDEOS / (name + Path(url).suffix))
-        add(ip, video, name, title, **opts)
+def read_channels(path):
+    """channels.txt: one channel per line, "name | title | video", # for comments."""
+    rows = []
+    for n, line in enumerate(Path(path).read_text(encoding="utf-8").splitlines(), 1):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) != 3:
+            fail(f"{path}, line {n}: it should be \"name | title | video\".")
+        rows.append(parts)
+    return rows
+
+
+def load_channels(ip, path, force=False, **opts):
+    """Uploads the channels of the list that the robot's card doesn't have yet. Returns how many."""
+    have = {r["name"] for r in channels(ip)}
+    added = 0
+    for name, title, source in read_channels(path):
+        if slug(name) + ".tv" in have and not force:
+            print(f"  {slug(name)}.tv is already on the card")
+            continue
+        add(ip, fetch(source, slug(name)), name, title, **opts)
+        added += 1
+    return added
 
 
 # ---------------------------------------------------------------- main
 def main():
     ap = argparse.ArgumentParser(description="Demo 12 - Mini TV: send videos to the robot's SD card over Wi-Fi.",
                                  formatter_class=argparse.RawDescriptionHelpFormatter, epilog=__doc__.split("\n\n")[1])
-    ap.add_argument("command", nargs="?", default="status", choices=["status", "sample", "add", "list", "remove", "convert"])
-    ap.add_argument("target", nargs="?", help="the video (add, convert) or the channel name (remove)")
+    ap.add_argument("command", nargs="?", default="status",
+                    choices=["status", "channels", "sample", "add", "list", "remove", "convert"])
+    ap.add_argument("target", nargs="?", help="the video (add, convert), the channel name (remove) or the list (channels)")
+    ap.add_argument("--force", action="store_true", help="channels: upload again the ones the card already has")
     ap.add_argument("--robot", default=ROBOT, help=f"robot name or IP (default {ROBOT})")
     ap.add_argument("--name", help="file name on the SD card (default: from the video's name)")
     ap.add_argument("--title", help="text shown when you switch to the channel")
@@ -232,16 +262,19 @@ def main():
 
     print(f"Looking for the robot ({a.robot})...")
     ip, info = connect(a.robot)
-    if a.command in ("sample", "add") and not info:
+    if a.command in ("channels", "sample", "add") and not info:
         fail("The robot has no SD card. Insert a FAT32 card and restart it.")
     if a.command == "status":
-        if not show(ip, info) and info:
-            print("\nNo videos yet: uploading the two samples.")
-            sample(ip, **opts)
+        show(ip, info)
+        if info:
+            print(f"\nChannels in {CHANNELS.name}:")
+            if load_channels(ip, CHANNELS, a.force, **opts):
+                print()
+                show(ip, info)
     elif a.command == "list":
         show(ip, info)
-    elif a.command == "sample":
-        sample(ip, **opts)
+    elif a.command in ("channels", "sample"):   # "sample": its name before channels.txt
+        load_channels(ip, a.target or CHANNELS, a.force, **opts)
     elif a.command == "add":
         add(ip, a.target, a.name, a.title, **opts)
     elif a.command == "remove":

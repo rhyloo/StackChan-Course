@@ -135,7 +135,7 @@ static void drawIdle() {
     } else {
         drawCentered("No videos on the SD card yet", 100, TFT_ORANGE);
         drawCentered("On the laptop:", 132, TFT_LIGHTGREY);
-        drawCentered("demos/12-mini-tv/run.sh sample", 156, TFT_WHITE);
+        drawCentered("demos/12-mini-tv/run.sh channels", 156, TFT_WHITE);
     }
     drawCentered(robotAddress().c_str(), 214, TFT_DARKGREY);
 }

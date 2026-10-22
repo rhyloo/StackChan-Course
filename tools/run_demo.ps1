@@ -42,7 +42,7 @@ if ($Help -or $Rest -contains "--help") {
         "01-*" { $laptop = "$D\relay\main.py" } "02-*" { $laptop = "$D\relay\main.py" } "02.1-*" { $laptop = "$D\relay\main.py" } "05-*" { $laptop = "$D\relay\main.py" }
         "07-*" { $laptop = "$D\relay\main.py" } "10-*" { $laptop = "$D\relay\main.py" }
         "03-*" { $laptop = "$D\laptop\position.py"; Write-Host "`nAlso:`n  $D\run.bat beacons   flash the three ESP32 beacons, one after another" }
-        "12-*" { $laptop = "$D\laptop\tv.py"; Write-Host "`nAlso, without flashing:`n  $D\run.bat sample | add VIDEO | list | remove NAME" }
+        "12-*" { $laptop = "$D\laptop\tv.py"; Write-Host "`nAlso, without flashing:`n  $D\run.bat channels | add VIDEO | list | remove NAME" }
         "11-*" { $laptop = "$D\laptop\drive.py"
                  Write-Host "`nAlso:`n  $D\run.bat tank      flash the tank's Arduino (remove the HM-10 first)"
                  Write-Host "The robot (optional, for the L2/R2 sounds) gets demo 02's firmware; -DebugLogs does nothing here." }
@@ -172,7 +172,7 @@ switch -Wildcard ($Dir.Name) {
         exit $LASTEXITCODE
     }
     "12-*" {
-        # "run.bat sample", "run.bat add VIDEO", "run.bat list"...: only the laptop side, without flashing
+        # "run.bat channels", "run.bat add VIDEO", "run.bat list"...: only the laptop side, without flashing
         if ($Rest.Count -gt 0) { Run-Laptop (@("$D\laptop\tv.py") + $Rest) }
         Flash-Robot "$D\firmware"
         Say "Looking for the robot on the Wi-Fi to send it the videos (Ctrl+C to quit)"
