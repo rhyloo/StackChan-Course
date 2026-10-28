@@ -40,7 +40,8 @@ def decode(line, elf, addr2line):
 def main():
     project = sys.argv[1] if len(sys.argv) > 1 else "demos/02-gemini-voice/firmware"
     port = sys.argv[2] if len(sys.argv) > 2 else None
-    elf = next(iter(glob.glob(os.path.join(ROOT, project, ".pio/build/*/firmware.elf"))), None)
+    # The newest one: a project with several environments (demo 15) flashes the last one built.
+    elf = max(glob.glob(os.path.join(ROOT, project, ".pio/build/*/firmware.elf")), key=os.path.getmtime, default=None)
     addr2line = next(iter(glob.glob(os.path.expanduser("~/.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-addr2line"))), None)
     if not elf:
         print(f"Warning: can't find {project}/.pio/build/*/firmware.elf; build it so crashes can be translated.")

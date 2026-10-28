@@ -40,6 +40,7 @@ show_help() {
         11-*) laptop="$DEMO/laptop/drive.py" ;;
         12-*) laptop="$DEMO/laptop/tv.py" ;;
         14-*) laptop="$DEMO/laptop/arm_web.py" ;;
+        15-*) laptop="$DEMO/laptop/ota.py" ;;
     esac
     cat <<EOF
 Usage: $DEMO/run.sh [mode] [--usb PORT] [options]
@@ -55,7 +56,8 @@ EOF
     case "$(basename "$DEMO")" in
         03-*) printf '\nAlso:\n  %s/run.sh beacons   flash the three ESP32 beacons, one after another\n' "$DEMO" ;;
         12-*) printf '\nAlso, without flashing:\n  %s/run.sh channels | add VIDEO | list | remove NAME\n' "$DEMO" ;;
-        11-*) printf '\nAlso:\n  %s/run.sh tank      flash the tank'"'"'s Arduino (remove the HM-10 first)\nThe robot (optional, for the L2/R2 sounds) gets demo 02'"'"'s firmware; --debug does nothing here.\n' "$DEMO" ;;
+        15-*) printf '\nAfter the first USB flash, over the Wi-Fi:\n  %s/run.sh send TEST | find | tests | log   [--host NAME|IP]\n' "$DEMO" ;;
+        11-*) printf '\nAlso:\n  %s/run.sh tank      flash the tank'"'"'s Arduino (remove the HM-10 first)\n  %s/run.sh vr        Stack-chan on the tank: VR viewer + voice (demo 02 relay), gamepad drives the tank\nWithout vr the robot (optional, for the L2/R2 sounds) gets demo 02'"'"'s firmware and --debug does nothing.\nThe vr options are those of %s/relay/main.py --help.\n' "$DEMO" "$DEMO" "$DEMO" ;;
     esac
     if [ -z "$laptop" ]; then
         printf '\nThis demo has nothing to run on the laptop: it shows the robot'"'"'s serial output.\n'
@@ -182,11 +184,17 @@ case "$(basename "$DEMO")" in
     13-*)
         flash_robot "$DEMO/firmware"
         monitor "Open the address it prints (or tap the robot's screen for a QR code) on a phone or laptop on the same Wi-Fi." ;;
+    16-*)
+        flash_robot "$DEMO/firmware"
+        monitor "Play on the robot's screen. The statistics page is the address on its home screen." ;;
+    17-*)
+        flash_robot "$DEMO/firmware"
+        monitor "Choose a game with the joystick (or tap it). Controls: the last item of the menu." ;;
     10-*)   # the robot runs demo 02's firmware; only the laptop side changes
         need_gemini_key
         flash_robot "demos/02-gemini-voice/firmware"
         relay ;;
-    11-*)   # "run.sh tank": the tank's Arduino. Otherwise the robot (optional: the L2/R2 sounds) gets demo 02's firmware.
+    11-*)   # "run.sh tank": the tank's Arduino. "run.sh vr": VR + voice relay with the tank. Otherwise the robot (optional: the L2/R2 sounds) gets demo 02's firmware.
         if [ "${ARGS[0]:-}" = tank ]; then
             echo
             read -r -p "REMOVE the Bluetooth module (HM-10) from the tank, connect the Arduino over USB and press Enter... " _
@@ -196,6 +204,12 @@ case "$(basename "$DEMO")" in
             ./tools/flash.sh "$DEMO/tank" "$port" --no-monitor
             say "Done. Put the Bluetooth module back and switch the tank on. Then: $DEMO/run.sh"
             exit 0
+        fi
+        if [ "${ARGS[0]:-}" = vr ]; then   # Stack-chan on the tank: demo 02 relay (VR + voice) + the tank
+            ARGS=("${ARGS[@]:1}")
+            need_gemini_key
+            flash_robot "demos/02-gemini-voice/firmware"
+            relay
         fi
         if [ "$FLASH" = 1 ] && [ -z "$PORT" ] && [ -z "$($PY tools/find_port.py)" ]; then
             [ "$MODE" != flash-only ] || fail "I can't find the robot on USB."
@@ -213,6 +227,10 @@ case "$(basename "$DEMO")" in
         fi
         say "Opening the arm's web page (Ctrl+C to quit). The micro:bit's A and B buttons still move the gripper."
         run "$PY" "$DEMO/laptop/arm_web.py" ${PORT:+--port "$PORT"} ${ARGS[@]+"${ARGS[@]}"} ;;
+    15-*)   # "run.sh send TEST", "run.sh find", "run.sh log"...: over the Wi-Fi, no USB
+        if [ ${#ARGS[@]} -gt 0 ]; then exec "$PY" "$DEMO/laptop/ota.py" "${ARGS[@]}"; fi
+        flash_robot "$DEMO/firmware"
+        monitor "The OTA base is on the robot, with test 'hello'. From now on, without a cable: $DEMO/run.sh send leds" ;;
     12-*)   # "run.sh channels", "run.sh add VIDEO", "run.sh list"...: only the laptop side, without flashing
         if [ ${#ARGS[@]} -gt 0 ]; then run "$PY" "$DEMO/laptop/tv.py" "${ARGS[@]}"; fi
         flash_robot "$DEMO/firmware"

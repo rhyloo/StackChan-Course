@@ -43,10 +43,13 @@ if ($Help -or $Rest -contains "--help") {
         "07-*" { $laptop = "$D\relay\main.py" } "10-*" { $laptop = "$D\relay\main.py" }
         "03-*" { $laptop = "$D\laptop\position.py"; Write-Host "`nAlso:`n  $D\run.bat beacons   flash the three ESP32 beacons, one after another" }
         "14-*" { $laptop = "$D\laptop\arm_web.py" }
+        "15-*" { $laptop = "$D\laptop\ota.py"; Write-Host "`nAfter the first USB flash, over the Wi-Fi:`n  $D\run.bat send TEST | find | tests | log   [--host NAME|IP]" }
         "12-*" { $laptop = "$D\laptop\tv.py"; Write-Host "`nAlso, without flashing:`n  $D\run.bat channels | add VIDEO | list | remove NAME" }
         "11-*" { $laptop = "$D\laptop\drive.py"
                  Write-Host "`nAlso:`n  $D\run.bat tank      flash the tank's Arduino (remove the HM-10 first)"
-                 Write-Host "The robot (optional, for the L2/R2 sounds) gets demo 02's firmware; -DebugLogs does nothing here." }
+                 Write-Host "  $D\run.bat vr        Stack-chan on the tank: VR viewer + voice (demo 02 relay), gamepad drives the tank"
+                 Write-Host "Without vr the robot (optional, for the L2/R2 sounds) gets demo 02's firmware and -DebugLogs does nothing."
+                 Write-Host "The vr options are those of $D\relay\main.py --help." }
     }
     if (-not $laptop) { Write-Host "`nThis demo has nothing to run on the laptop: it shows the robot's serial output." }
     elseif (Test-Path $Py) { Write-Host "`nAny other option goes to ${laptop}:`n"; & $Py $laptop --help }
@@ -148,9 +151,11 @@ switch -Wildcard ($Dir.Name) {
     "08-*" { Flash-Robot "$D\firmware"; Monitor "Move the servo from the robot's screen." }
     "09-*" { Flash-Robot "$D\firmware"; Monitor "Choose the module type on the robot's screen." }
     "13-*" { Flash-Robot "$D\firmware"; Monitor "Open the address it prints (or tap the robot's screen for a QR code) on a phone or laptop on the same Wi-Fi." }
+    "16-*" { Flash-Robot "$D\firmware"; Monitor "Play on the robot's screen. The statistics page is the address on its home screen." }
+    "17-*" { Flash-Robot "$D\firmware"; Monitor "Choose a game with the joystick (or tap it). Controls: the last item of the menu." }
     "10-*" { Need-GeminiKey; Flash-Robot "demos\02-gemini-voice\firmware"; Start-Relay }
     "11-*" {
-        # "run.bat tank": the tank's Arduino. Otherwise the robot (optional: the L2/R2 sounds) gets demo 02's firmware.
+        # "run.bat tank": the tank's Arduino. "run.bat vr": VR + voice relay with the tank. Otherwise the robot (optional: the L2/R2 sounds) gets demo 02's firmware.
         if ($Rest.Count -gt 0 -and $Rest[0] -eq "tank") {
             Read-Host "REMOVE the Bluetooth module (HM-10) from the tank, connect the Arduino over USB and press Enter"
             $dev = $Usb
@@ -161,6 +166,10 @@ switch -Wildcard ($Dir.Name) {
             if ($LASTEXITCODE) { exit $LASTEXITCODE }
             Say "Done. Put the Bluetooth module back and switch the tank on. Then: $D\run.bat"
             exit 0
+        }
+        if ($Rest.Count -gt 0 -and $Rest[0] -eq "vr") {   # Stack-chan on the tank: demo 02 relay (VR + voice) + the tank
+            $Rest = @($Rest | Select-Object -Skip 1)
+            Need-GeminiKey; Flash-Robot "demos\02-gemini-voice\firmware"; Start-Relay
         }
         $skip = $NoFlash
         if (-not $skip -and -not $Usb -and -not (& $Py tools\find_port.py)) {
@@ -184,6 +193,12 @@ switch -Wildcard ($Dir.Name) {
         Say "Opening the arm's web page (Ctrl+C to quit). The micro:bit's A and B buttons still move the gripper."
         $a = @("$D\laptop\arm_web.py"); if ($Usb) { $a += @("--port", $Usb) }
         Run-Laptop ($a + $Rest)
+    }
+    "15-*" {
+        # "run.bat send TEST", "run.bat find", "run.bat log"...: over the Wi-Fi, no USB
+        if ($Rest.Count -gt 0) { & $Py "$D\laptop\ota.py" @Rest; exit $LASTEXITCODE }
+        Flash-Robot "$D\firmware"
+        Monitor "The OTA base is on the robot, with test 'hello'. From now on, without a cable: $D\run.bat send leds"
     }
     "12-*" {
         # "run.bat channels", "run.bat add VIDEO", "run.bat list"...: only the laptop side, without flashing
