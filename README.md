@@ -22,6 +22,7 @@ Demos to learn to program [Stack-chan](docs/ROBOT.md), an M5Stack desktop robot 
 | [15 · Updates over Wi-Fi](demos/15-ota/) | Flash the robot over USB once; then send it programs over the Wi-Fi (OTA) and see what they print, without a cable. If a new program crashes, the robot goes back to the previous one by itself. | Robot and a laptop on the same Wi-Fi. |
 | [16 · Math game](demos/16-math-game/) | Sums, subtractions, times tables and divisions on the touch screen, with things to count, a Stack-chan that nods and cheers, and levels that open as you master them. It asks more of what you fail, and keeps the statistics on the robot (screen and a web page). | Only the robot. For the web page, the same Wi-Fi. |
 | [17 · Arcade](demos/17-arcade/) | A platform level where Stack-chan flies with a raccoon tail, a dino endless runner, Snake, Breakout, Tetris and Space Invaders on the robot's screen, played with a joystick and two buttons wired to its Grove ports. High scores stay on the robot. | A KY-023 joystick, two push buttons, four resistors and Dupont wires. |
+| [18 · Hardware lab](demos/18-hardware-lab/) | Every part of the robot on one web page: camera, head, LEDs, screen, speaker and microphone, battery, IMU, light, head touch panel, NFC, infrared and microSD, live from a phone or laptop. A quick check of what works on a robot. | Robot and a phone or laptop on the same Wi-Fi. |
 
 ```
 demos/                 one folder per demo: firmware, laptop code and README

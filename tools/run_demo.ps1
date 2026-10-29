@@ -153,6 +153,7 @@ switch -Wildcard ($Dir.Name) {
     "13-*" { Flash-Robot "$D\firmware"; Monitor "Open the address it prints (or tap the robot's screen for a QR code) on a phone or laptop on the same Wi-Fi." }
     "16-*" { Flash-Robot "$D\firmware"; Monitor "Play on the robot's screen. The statistics page is the address on its home screen." }
     "17-*" { Flash-Robot "$D\firmware"; Monitor "Choose a game with the joystick (or tap it). Controls: the last item of the menu." }
+    "18-*" { Flash-Robot "$D\firmware"; Monitor "Open the address on the robot's screen (or tap it for a QR code) on a phone or laptop on the same Wi-Fi." }
     "10-*" { Need-GeminiKey; Flash-Robot "demos\02-gemini-voice\firmware"; Start-Relay }
     "11-*" {
         # "run.bat tank": the tank's Arduino. "run.bat vr": VR + voice relay with the tank. Otherwise the robot (optional: the L2/R2 sounds) gets demo 02's firmware.

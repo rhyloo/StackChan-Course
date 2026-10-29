@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stack-chan hardware lab</title>
+<style>
+  :root { --bg:#111418; --card:#1b2027; --line:#2c333d; --text:#e6e9ee; --dim:#8b95a3; --ok:#3fb950; --bad:#f85149; --acc:#58a6ff; --warn:#d29922; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.4 system-ui,sans-serif; }
+  header { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; padding:12px 16px; border-bottom:1px solid var(--line); }
+  header h1 { font-size:18px; margin:0; }
+  header .dim { color:var(--dim); }
+  main { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:12px; padding:12px 16px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px; }
+  section h2 { font-size:15px; margin:0 0 8px; display:flex; justify-content:space-between; align-items:center; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:6px 0; }
+  .kv { display:grid; grid-template-columns:auto 1fr; gap:2px 12px; }
+  .kv span:nth-child(odd) { color:var(--dim); }
+  button { background:#262d36; color:var(--text); border:1px solid var(--line); border-radius:6px; padding:6px 10px; cursor:pointer; font:inherit; }
+  button:hover { border-color:var(--acc); }
+  button.on { background:var(--acc); color:#000; }
+  button.danger { border-color:var(--warn); color:var(--warn); }
+  input[type=range] { flex:1; min-width:120px; }
+  input[type=number] { width:70px; background:#0d1014; color:var(--text); border:1px solid var(--line); border-radius:6px; padding:4px; }
+  .pill { padding:2px 8px; border-radius:10px; font-size:12px; background:var(--bad); color:#000; }
+  .pill.ok { background:var(--ok); }
+  .bar { height:12px; background:#0d1014; border:1px solid var(--line); border-radius:6px; overflow:hidden; flex:1; }
+  .bar > div { height:100%; width:0; background:var(--ok); transition:width .1s; }
+  .zones { display:flex; gap:8px; }
+  .zone { flex:1; text-align:center; padding:14px 0; border-radius:8px; background:#262d36; transition:background .1s; }
+  .zone.l1 { background:#6e5a12; } .zone.l2 { background:#9a5b12; } .zone.l3 { background:#b62324; }
+  #cam { width:100%; aspect-ratio:4/3; background:#000; border-radius:6px; object-fit:contain; }
+  code { color:var(--acc); }
+  #conn.bad { color:var(--bad); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Stack-chan hardware lab</h1>
+  <span id="name" class="dim"></span>
+  <span id="conn" class="dim">connecting...</span>
+</header>
+<main>
+
+<section>
+  <h2>Robot</h2>
+  <div class="row" id="checks"></div>
+  <div class="kv">
+    <span>IP</span><span id="ip"></span>
+    <span>Wi-Fi</span><span id="rssi"></span>
+    <span>Up</span><span id="up"></span>
+    <span>Memory</span><span id="mem"></span>
+    <span>Chip</span><span id="temp"></span>
+    <span>RTC</span><span id="rtc"></span>
+    <span>microSD</span><span id="sd"></span>
+  </div>
+</section>
+
+<section>
+  <h2>Battery</h2>
+  <div class="row"><div class="bar"><div id="batbar"></div></div><span id="batpct"></span></div>
+  <div class="kv">
+    <span>Voltage</span><span id="batv"></span>
+    <span>Current</span><span id="batma"></span>
+  </div>
+</section>
+
+<section>
+  <h2>Head (servos) <span class="dim" id="headnow"></span></h2>
+  <div class="row">Pan <input type="range" id="pan" min="-135" max="165" value="0"><span id="panv">0</span></div>
+  <div class="row">Tilt <input type="range" id="tilt" min="-6" max="73" value="0"><span id="tiltv">0</span></div>
+  <div class="row">
+    <button onclick="center()">Center</button>
+    <button onclick="cmd('torque off')">Torque off</button>
+    <button onclick="cmd('torque on')">Torque on</button>
+  </div>
+</section>
+
+<section>
+  <h2>Camera</h2>
+  <img id="cam" alt="">
+  <div class="row">
+    <button id="stream" onclick="toggleStream()">Video</button>
+    <button onclick="window.open('/photo.jpg?' + Date.now())">Photo</button>
+  </div>
+</section>
+
+<section>
+  <h2>LEDs and screen</h2>
+  <div class="row">Base LEDs <input type="color" id="leds" value="#00ff00"> <button onclick="cmd('leds 0 0 0')">Off</button></div>
+  <div class="row">Screen (3 s) <input type="color" id="screen" value="#ff0000"></div>
+  <div class="row">Brightness <input type="range" id="bright" min="10" max="255" value="120"></div>
+</section>
+
+<section>
+  <h2>Speaker</h2>
+  <div class="row">Tone <input type="number" id="hz" value="1000"> Hz <input type="number" id="ms" value="200"> ms <button onclick="tone()">Play</button></div>
+  <div class="row">
+    <button onclick="cmd('tone 523 150')">Do</button><button onclick="cmd('tone 659 150')">Mi</button>
+    <button onclick="cmd('tone 784 150')">Sol</button><button onclick="cmd('tone 1047 300')">Do'</button>
+  </div>
+  <div class="row">Volume <input type="range" id="vol" min="0" max="200" value="120"><span id="volv"></span></div>
+</section>
+
+<section>
+  <h2>Microphone <span class="dim" id="audiost"></span></h2>
+  <div class="row"><button id="mic" onclick="toggleMic()">Live level</button><div class="bar"><div id="micbar"></div></div></div>
+  <div class="row">
+    <button onclick="cmd('record')">Record <span class="sec"></span> s</button>
+    <button onclick="cmd('play')">Play on the robot</button>
+    <button onclick="listen()">Listen here</button>
+  </div>
+  <audio id="rec" controls style="width:100%;display:none"></audio>
+  <div class="dim">The mic and the speaker share one bus: while one works, the other waits.</div>
+</section>
+
+<section>
+  <h2>Touch</h2>
+  <div class="dim">Head panel (Si12T): touch the top of the base.</div>
+  <div class="zones" style="margin:6px 0"><div class="zone" id="z0">1</div><div class="zone" id="z1">2</div><div class="zone" id="z2">3</div></div>
+  <div class="kv">
+    <span>Raw</span><span id="zraw"></span>
+    <span>Screen</span><span id="tap"></span>
+  </div>
+</section>
+
+<section>
+  <h2>Movement (IMU)</h2>
+  <div class="kv">
+    <span>Accel (g)</span><span id="acc"></span>
+    <span>Gyro (deg/s)</span><span id="gyro"></span>
+  </div>
+  <h2 style="margin-top:12px">Light and proximity</h2>
+  <div class="kv">
+    <span>Light</span><span id="lux"></span>
+    <span>Proximity</span><span id="prox"></span>
+  </div>
+</section>
+
+<section>
+  <h2>NFC <button id="nfc" onclick="toggleNfc()">On</button></h2>
+  <div class="dim">Hold a card or sticker 1-2 cm from the base.</div>
+  <div class="kv" style="margin-top:6px">
+    <span>Tags</span><span id="nfccount"></span>
+    <span>UID</span><span id="nfcuid"></span>
+    <span>Type</span><span id="nfctype"></span>
+    <span>Text</span><span id="nfctext"></span>
+  </div>
+</section>
+
+<section>
+  <h2>Infrared</h2>
+  <div class="dim">Point a remote control at the base and press a button.</div>
+  <div class="kv" style="margin-top:6px">
+    <span>Codes</span><span id="ircount"></span>
+    <span>Last</span><span id="ircode"></span>
+  </div>
+  <div class="row"><button onclick="cmd('ir')">Send it back</button></div>
+</section>
+
+<section>
+  <h2>Command</h2>
+  <div class="row"><input id="line" style="flex:1" placeholder="leds 255 0 0"><button onclick="cmd($('line').value)">Send</button></div>
+  <div class="dim">
+    <code>head PAN TILT</code> <code>center</code> <code>torque on|off</code> <code>leds R G B</code>
+    <code>screen R G B</code> <code>brightness N</code> <code>tone HZ MS</code> <code>volume N</code>
+    <code>mic on|off</code> <code>record</code> <code>play</code> <code>ir</code> <code>nfc on|off</code>.
+    The same work on the serial monitor.
+  </div>
+</section>
+
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let st = {}, streaming = false, failures = 0;
+
+function cmd(line) {
+  if (!line) return;
+  return fetch('/cmd', { method: 'POST', body: line }).catch(() => {});
+}
+function hex(id) {
+  const v = $(id).value;
+  return [1, 3, 5].map(i => parseInt(v.substr(i, 2), 16)).join(' ');
+}
+function throttle(fn, ms) {   // sliders: at most one command every ms, and always the last value
+  let t = 0, timer = null;
+  return () => {
+    clearTimeout(timer);
+    const wait = t + ms - Date.now();
+    if (wait <= 0) { t = Date.now(); fn(); } else timer = setTimeout(() => { t = Date.now(); fn(); }, wait);
+  };
+}
+const head = throttle(() => cmd(`head ${$('pan').value} ${$('tilt').value}`), 100);
+$('pan').oninput = () => { $('panv').textContent = $('pan').value; head(); };
+$('tilt').oninput = () => { $('tiltv').textContent = $('tilt').value; head(); };
+function center() { $('pan').value = 0; $('tilt').value = 0; $('panv').textContent = $('tiltv').textContent = 0; cmd('center'); }
+$('leds').oninput = throttle(() => cmd('leds ' + hex('leds')), 100);
+$('screen').oninput = throttle(() => cmd('screen ' + hex('screen')), 200);
+$('bright').oninput = throttle(() => cmd('brightness ' + $('bright').value), 100);
+$('vol').oninput = throttle(() => cmd('volume ' + $('vol').value), 200);
+function tone() { cmd(`tone ${$('hz').value} ${$('ms').value}`); }
+function toggleMic() { cmd('mic ' + (st.audio && st.audio.mic ? 'off' : 'on')); }
+function toggleNfc() { cmd('nfc ' + (st.nfc && st.nfc.on ? 'off' : 'on')); }
+function listen() { const a = $('rec'); a.style.display = ''; a.src = '/rec.wav?' + Date.now(); a.play(); }
+function toggleStream() {
+  streaming = !streaming;
+  $('cam').src = streaming ? `http://${location.hostname}:81/stream` : '';
+  $('stream').classList.toggle('on', streaming);
+}
+
+function show(s) {
+  st = s;
+  $('name').textContent = s.name;
+  $('checks').innerHTML = Object.entries(s.ok).map(([k, v]) => `<span class="pill ${v ? 'ok' : ''}">${k}</span>`).join('');
+  $('ip').textContent = s.ip;
+  $('rssi').textContent = `${s.rssi} dBm`;
+  $('up').textContent = `${s.up} s`;
+  $('mem').textContent = `${(s.heap / 1024).toFixed(0)} KB free, PSRAM ${(s.psram / 1048576).toFixed(1)} MB`;
+  $('temp').textContent = `${s.temp} °C`;
+  $('rtc').textContent = s.rtc;
+  $('sd').textContent = s.ok.sd ? `${s.sd_mb} MB` : 'no card';
+  $('batbar').style.width = s.bat.pct + '%';
+  $('batpct').textContent = s.bat.pct + '%';
+  $('batv').textContent = s.bat.v + ' V' + (s.bat.charging ? ' (charging)' : '');
+  $('batma').textContent = s.bat.ma === null ? '?' : `${s.bat.ma} mA (+ = discharging)`;
+  $('headnow').textContent = `now ${s.head.pan.toFixed(0)} / ${s.head.tilt.toFixed(0)}`;
+  $('acc').textContent = `${s.imu.ax.toFixed(2)}  ${s.imu.ay.toFixed(2)}  ${s.imu.az.toFixed(2)}`;
+  $('gyro').textContent = `${s.imu.gx}  ${s.imu.gy}  ${s.imu.gz}`;
+  $('lux').textContent = `${s.lux} lx`;
+  $('prox').textContent = `${s.prox} (0-2047, higher = closer)`;
+  s.touch.zones.forEach((z, i) => $('z' + i).className = 'zone l' + z);
+  $('zraw').textContent = '0x' + s.touch.raw.toString(16).padStart(2, '0');
+  $('tap').textContent = s.touch.x < 0 ? 'not touched yet' : `${s.touch.taps} taps, last at ${s.touch.x}, ${s.touch.y}`;
+  $('nfc').textContent = s.nfc.on ? 'On' : 'Off';
+  $('nfc').classList.toggle('on', !!s.nfc.on);
+  $('nfccount').textContent = s.nfc.count;
+  $('nfcuid').textContent = s.nfc.uid || '-';
+  $('nfctype').textContent = s.nfc.type || '-';
+  $('nfctext').textContent = s.nfc.text || '-';
+  $('ircount').textContent = s.ir.count;
+  $('ircode').textContent = s.ir.code || '-';
+  $('mic').classList.toggle('on', !!s.audio.mic);
+  $('micbar').style.width = (s.audio.mic || s.audio.status !== 'idle' ? s.audio.level : 0) + '%';
+  $('micbar').style.background = s.audio.level > 85 ? 'var(--bad)' : 'var(--ok)';
+  $('audiost').textContent = s.audio.status;
+  $('volv').textContent = s.audio.volume;
+  document.querySelectorAll('.sec').forEach(e => e.textContent = s.audio.seconds);
+}
+
+async function poll() {
+  try {
+    const r = await fetch('/state', { cache: 'no-store' });
+    show(await r.json());
+    failures = 0;
+    $('conn').textContent = 'live';
+    $('conn').className = 'dim';
+  } catch (e) {
+    if (++failures > 2) { $('conn').textContent = 'no answer (restarting? out of Wi-Fi range?)'; $('conn').className = 'bad'; }
+  }
+  setTimeout(poll, 250);
+}
+poll();
+</script>
+</body>
+</html>
